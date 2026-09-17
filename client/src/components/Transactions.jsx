@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 
 function currency(n) {
@@ -9,6 +9,17 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function downloadCsv(filename, rows) {
+  const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 const EMPTY_FORM = { date: today(), amount: '', type: 'expense', categoryId: '', description: '' };
 
 export default function Transactions({ month, categories, onChange }) {
@@ -16,6 +27,8 @@ export default function Transactions({ month, categories, onChange }) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [filterCategoryId, setFilterCategoryId] = useState('');
 
   const load = () => {
     api.getTransactions(month).then(setTransactions).catch((e) => setError(e.message));
@@ -67,6 +80,23 @@ export default function Transactions({ month, categories, onChange }) {
   const categoryName = (id) => categories.find((c) => c.id === id)?.name || 'Unknown';
 
   const filteredCategories = categories.filter((c) => c.type === form.type);
+
+  const visibleTransactions = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return transactions.filter((t) => {
+      if (filterCategoryId && t.categoryId !== filterCategoryId) return false;
+      if (!q) return true;
+      return t.description.toLowerCase().includes(q) || categoryName(t.categoryId).toLowerCase().includes(q);
+    });
+  }, [transactions, search, filterCategoryId, categories]);
+
+  const exportCsv = () => {
+    const rows = [
+      ['Date', 'Type', 'Category', 'Description', 'Amount'],
+      ...visibleTransactions.map((t) => [t.date, t.type, categoryName(t.categoryId), t.description, t.amount])
+    ];
+    downloadCsv(`wealthline-transactions-${month}.csv`, rows);
+  };
 
   return (
     <div className="transactions">
@@ -131,11 +161,35 @@ export default function Transactions({ month, categories, onChange }) {
       </form>
 
       <div className="panel">
-        <h3>Transactions this month</h3>
-        {transactions.length === 0 ? (
-          <p className="empty-hint">No transactions yet for this month.</p>
+        <div className="panel-head">
+          <h3>Transactions this month</h3>
+          <button className="secondary-btn" onClick={exportCsv} disabled={visibleTransactions.length === 0}>
+            Export CSV
+          </button>
+        </div>
+        <div className="filter-row">
+          <input
+            type="text"
+            placeholder="Search description or category…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="grow"
+          />
+          <select value={filterCategoryId} onChange={(e) => setFilterCategoryId(e.target.value)}>
+            <option value="">All categories</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        {visibleTransactions.length === 0 ? (
+          <p className="empty-hint">
+            {transactions.length === 0 ? 'No transactions yet for this month.' : 'No transactions match your search.'}
+          </p>
         ) : (
-          <table className="data-table">
+          <table className="data-table responsive-table">
             <thead>
               <tr>
                 <th>Date</th>
@@ -146,12 +200,12 @@ export default function Transactions({ month, categories, onChange }) {
               </tr>
             </thead>
             <tbody>
-              {transactions.map((t) => (
+              {visibleTransactions.map((t) => (
                 <tr key={t.id}>
-                  <td>{t.date}</td>
-                  <td>{categoryName(t.categoryId)}</td>
-                  <td>{t.description}</td>
-                  <td className={`align-right ${t.type === 'income' ? 'text-income' : 'text-expense'}`}>
+                  <td data-label="Date">{t.date}</td>
+                  <td data-label="Category">{categoryName(t.categoryId)}</td>
+                  <td data-label="Description">{t.description}</td>
+                  <td data-label="Amount" className={`align-right ${t.type === 'income' ? 'text-income' : 'text-expense'}`}>
                     {t.type === 'income' ? '+' : '-'}
                     {currency(t.amount)}
                   </td>

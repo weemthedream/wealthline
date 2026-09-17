@@ -12,6 +12,8 @@ const budgetsRouter = require('./routes/budgets');
 const billsRouter = require('./routes/bills');
 const summaryRouter = require('./routes/summary');
 const goalsRouter = require('./routes/goals');
+const accountsRouter = require('./routes/accounts');
+const networthRouter = require('./routes/networth');
 
 const app = express();
 
@@ -41,6 +43,8 @@ app.use('/api/budgets', budgetsRouter);
 app.use('/api/bills', billsRouter);
 app.use('/api/summary', summaryRouter);
 app.use('/api/goals', goalsRouter);
+app.use('/api/accounts', accountsRouter);
+app.use('/api/networth', networthRouter);
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 

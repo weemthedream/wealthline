@@ -78,6 +78,17 @@ export default function Dashboard({ month, refreshKey }) {
         </div>
       </div>
 
+      {summary.insights && summary.insights.length > 0 && (
+        <div className="insights-list">
+          {summary.insights.map((insight, i) => (
+            <div className={`insight-card ${insight.type}`} key={i}>
+              <span className="insight-icon">{insight.type === 'danger' ? '🚨' : insight.type === 'warning' ? '⚠️' : '✨'}</span>
+              {insight.text}
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="dashboard-grid">
         <div className="panel">
           <h3>Spending by Category</h3>

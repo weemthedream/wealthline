@@ -5,8 +5,10 @@ import Budgets from './components/Budgets.jsx';
 import Bills from './components/Bills.jsx';
 import YearView from './components/YearView.jsx';
 import Retirement from './components/Retirement.jsx';
+import NetWorth from './components/NetWorth.jsx';
 import CategoriesDrawer from './components/CategoriesDrawer.jsx';
 import AuthScreen from './components/AuthScreen.jsx';
+import ResetPassword from './components/ResetPassword.jsx';
 import { api } from './api.js';
 
 function currentMonth() {
@@ -30,6 +32,13 @@ const MONTH_SUBTABS = [
   { id: 'transactions', label: 'Transactions' },
   { id: 'budgets', label: 'Budgets' },
   { id: 'bills', label: 'Bills' }
+];
+
+const PRIMARY_TABS = [
+  { id: 'month', label: '1 Month', icon: '📅' },
+  { id: 'year', label: '1 Year', icon: '📊' },
+  { id: 'networth', label: 'Net Worth', icon: '🏦' },
+  { id: 'retirement', label: 'Retirement', icon: '🎯' }
 ];
 
 function MainApp({ user, onLogout, theme, setTheme }) {
@@ -80,15 +89,11 @@ function MainApp({ user, onLogout, theme, setTheme }) {
         </div>
         <div className="primary-nav-row">
           <div className="segmented">
-            <button className={primaryTab === 'month' ? 'active' : ''} onClick={() => setPrimaryTab('month')}>
-              1 Month
-            </button>
-            <button className={primaryTab === 'year' ? 'active' : ''} onClick={() => setPrimaryTab('year')}>
-              1 Year
-            </button>
-            <button className={primaryTab === 'retirement' ? 'active' : ''} onClick={() => setPrimaryTab('retirement')}>
-              Retirement Goals
-            </button>
+            {PRIMARY_TABS.map((t) => (
+              <button key={t.id} className={primaryTab === t.id ? 'active' : ''} onClick={() => setPrimaryTab(t.id)}>
+                {t.label}
+              </button>
+            ))}
           </div>
 
           {primaryTab === 'month' && (
@@ -145,8 +150,19 @@ function MainApp({ user, onLogout, theme, setTheme }) {
 
         {primaryTab === 'year' && <YearView year={year} refreshKey={refreshKey} />}
 
+        {primaryTab === 'networth' && <NetWorth />}
+
         {primaryTab === 'retirement' && <Retirement />}
       </main>
+
+      <nav className="bottom-tab-bar">
+        {PRIMARY_TABS.map((t) => (
+          <button key={t.id} className={primaryTab === t.id ? 'active' : ''} onClick={() => setPrimaryTab(t.id)}>
+            <span className="bottom-tab-icon">{t.icon}</span>
+            <span className="bottom-tab-label">{t.label}</span>
+          </button>
+        ))}
+      </nav>
 
       {showCategories && (
         <CategoriesDrawer categories={categories} onClose={() => setShowCategories(false)} onChange={bump} />
@@ -155,9 +171,15 @@ function MainApp({ user, onLogout, theme, setTheme }) {
   );
 }
 
+function getResetToken() {
+  if (window.location.pathname !== '/reset-password') return null;
+  return new URLSearchParams(window.location.search).get('token');
+}
+
 export default function App() {
   const [user, setUser] = useState(undefined); // undefined = checking, null = logged out, object = logged in
   const [theme, setTheme] = useState(() => localStorage.getItem('wealthline-theme') || 'dark');
+  const [resetToken, setResetToken] = useState(getResetToken);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -165,16 +187,30 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
+    if (resetToken) return; // don't bother checking auth while resetting a password
     api
       .me()
       .then(setUser)
       .catch(() => setUser(null));
-  }, []);
+  }, [resetToken]);
 
   const logout = async () => {
     await api.logout().catch(() => {});
     setUser(null);
   };
+
+  if (resetToken) {
+    return (
+      <ResetPassword
+        token={resetToken}
+        onDone={(loggedInUser) => {
+          window.history.replaceState({}, '', '/');
+          setResetToken(null);
+          setUser(loggedInUser);
+        }}
+      />
+    );
+  }
 
   if (user === undefined) return <div className="loading">Loading…</div>;
   if (user === null) return <AuthScreen onAuthenticated={setUser} />;

@@ -14,9 +14,13 @@ const ready = (async () => {
       id TEXT PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
-      created_at TEXT NOT NULL
+      created_at TEXT NOT NULL,
+      reset_token_hash TEXT,
+      reset_token_expires TIMESTAMPTZ
     )
   `;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_hash TEXT`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires TIMESTAMPTZ`;
   await sql`
     CREATE TABLE IF NOT EXISTS categories (
       id TEXT PRIMARY KEY,
@@ -73,12 +77,37 @@ const ready = (async () => {
       expected_return_pct DOUBLE PRECISION NOT NULL DEFAULT 6
     )
   `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS accounts (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      is_liability BOOLEAN NOT NULL DEFAULT false,
+      balance DOUBLE PRECISION NOT NULL DEFAULT 0,
+      color TEXT NOT NULL DEFAULT '#6366f1',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS account_snapshots (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      account_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      balance DOUBLE PRECISION NOT NULL,
+      UNIQUE(account_id, date)
+    )
+  `;
   await sql`CREATE INDEX IF NOT EXISTS idx_categories_user ON categories(user_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions(user_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON transactions(user_id, date)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_budgets_user ON budgets(user_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_bills_user ON bills(user_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_goals_user ON goals(user_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_accounts_user ON accounts(user_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_account_snapshots_user ON account_snapshots(user_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_account_snapshots_account ON account_snapshots(account_id, date)`;
 })();
 
 const DEFAULT_CATEGORIES = [

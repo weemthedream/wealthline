@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { api } from '../api.js';
+import { iconForCategory } from '../categoryIcons.js';
 
 const EMPTY_NEW = { name: '', type: 'expense', color: '#6366f1' };
 
@@ -69,6 +70,7 @@ export default function CategoriesDrawer({ categories, onClose, onChange }) {
 
   const renderRow = (category) => (
     <div className="category-row" key={category.id}>
+      <span className="category-icon">{iconForCategory(category.name)}</span>
       <input
         type="color"
         value={category.color}

@@ -22,6 +22,9 @@ export const api = {
   login: (email, password) => request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   logout: () => request('/auth/logout', { method: 'POST' }),
   me: () => request('/auth/me'),
+  forgotPassword: (email) => request('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+  resetPassword: (token, password) =>
+    request('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
 
   getCategories: () => request('/categories'),
   createCategory: (data) => request('/categories', { method: 'POST', body: JSON.stringify(data) }),
@@ -51,5 +54,12 @@ export const api = {
   getGoals: () => request('/goals'),
   createGoal: (data) => request('/goals', { method: 'POST', body: JSON.stringify(data) }),
   updateGoal: (id, data) => request(`/goals/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  deleteGoal: (id) => request(`/goals/${id}`, { method: 'DELETE' })
+  deleteGoal: (id) => request(`/goals/${id}`, { method: 'DELETE' }),
+
+  getAccounts: () => request('/accounts'),
+  createAccount: (data) => request('/accounts', { method: 'POST', body: JSON.stringify(data) }),
+  updateAccount: (id, data) => request(`/accounts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteAccount: (id) => request(`/accounts/${id}`, { method: 'DELETE' }),
+
+  getNetWorth: () => request('/networth')
 };

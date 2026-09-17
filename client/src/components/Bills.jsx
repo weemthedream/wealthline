@@ -137,7 +137,7 @@ export default function Bills({ month, categories, onChange }) {
         {bills.length === 0 ? (
           <p className="empty-hint">No recurring bills yet.</p>
         ) : (
-          <table className="data-table">
+          <table className="data-table responsive-table">
             <thead>
               <tr>
                 <th>Name</th>
@@ -154,12 +154,12 @@ export default function Bills({ month, categories, onChange }) {
                 const paid = (b.paidMonths || []).includes(month);
                 return (
                   <tr key={b.id}>
-                    <td>{b.name}</td>
-                    <td>{categoryName(b.categoryId)}</td>
-                    <td>{b.dueDay}</td>
-                    <td>{b.frequency}</td>
-                    <td className="align-right">{currency(b.amount)}</td>
-                    <td>
+                    <td data-label="Name">{b.name}</td>
+                    <td data-label="Category">{categoryName(b.categoryId)}</td>
+                    <td data-label="Due Day">{b.dueDay}</td>
+                    <td data-label="Frequency">{b.frequency}</td>
+                    <td data-label="Amount" className="align-right">{currency(b.amount)}</td>
+                    <td data-label="Paid this month">
                       <label className="checkbox-label">
                         <input type="checkbox" checked={paid} onChange={() => togglePaid(b.id)} />
                         {paid ? 'Paid' : 'Unpaid'}

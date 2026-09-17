@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import { iconForCategory } from '../categoryIcons.js';
 
 function currency(n) {
   return n.toLocaleString(undefined, { style: 'currency', currency: 'USD' });
@@ -59,7 +60,7 @@ export default function Budgets({ month, categories, onChange }) {
       <div className="panel">
         <h3>Monthly Budgets by Category</h3>
         <p className="empty-hint">Set a spending limit for each category. Progress updates as you log expenses.</p>
-        <table className="data-table">
+        <table className="data-table responsive-table">
           <thead>
             <tr>
               <th>Category</th>
@@ -77,12 +78,13 @@ export default function Budgets({ month, categories, onChange }) {
               const over = limit !== undefined && spent > limit;
               return (
                 <tr key={c.id}>
-                  <td>
+                  <td data-label="Category">
+                    <span className="category-icon">{iconForCategory(c.name)}</span>
                     <span className="color-dot" style={{ background: c.color }} />
                     {c.name}
                   </td>
-                  <td>{currency(spent)}</td>
-                  <td>
+                  <td data-label="Spent">{currency(spent)}</td>
+                  <td data-label="Limit">
                     <input
                       type="number"
                       min="0"
@@ -94,7 +96,7 @@ export default function Budgets({ month, categories, onChange }) {
                       onBlur={() => save(c.id)}
                     />
                   </td>
-                  <td className="budget-progress-cell">
+                  <td className="budget-progress-cell" data-label="Progress">
                     {limit ? (
                       <div className="progress-track">
                         <div

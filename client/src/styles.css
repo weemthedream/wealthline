@@ -254,6 +254,8 @@ h4 {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 4px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 /* ---------- Summary cards ---------- */
@@ -589,6 +591,12 @@ select:focus {
   flex-shrink: 0;
 }
 
+.category-icon {
+  display: inline-block;
+  margin-right: 6px;
+  font-size: 0.95rem;
+}
+
 .budget-input {
   width: 110px;
 }
@@ -829,6 +837,119 @@ select:focus {
   gap: 8px;
 }
 
+/* ---------- Insights ---------- */
+.insights-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.insight-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.insight-card.warning {
+  background: var(--warn-soft);
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.insight-card.danger {
+  background: var(--expense-soft);
+  border-color: var(--expense);
+  color: var(--expense);
+}
+
+.insight-card.positive {
+  background: var(--income-soft);
+  border-color: var(--income);
+  color: var(--income);
+}
+
+.insight-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+/* ---------- Filter row (Transactions) ---------- */
+.filter-row {
+  display: flex;
+  gap: 10px;
+  margin: 14px 0;
+  flex-wrap: wrap;
+}
+
+.filter-row input,
+.filter-row select {
+  min-width: 0;
+}
+
+/* ---------- Net worth / accounts ---------- */
+.account-groups {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.account-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.account-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.account-row:last-child {
+  border-bottom: none;
+}
+
+.account-row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.account-row-name {
+  font-weight: 600;
+  font-size: 0.92rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-row-type {
+  font-size: 0.76rem;
+  color: var(--text-faint);
+}
+
+/* ---------- Bottom tab bar (mobile primary nav) ---------- */
+.bottom-tab-bar {
+  display: none;
+}
+
+/* ============================================================
+   Responsive: tablet & phone
+   ============================================================ */
+@media (max-width: 860px) {
+  .account-groups {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 640px) {
   .topbar-inner,
   .primary-nav-row,
@@ -839,5 +960,166 @@ select:focus {
   .main-content {
     padding-left: 14px;
     padding-right: 14px;
+    padding-bottom: 84px; /* clear the fixed bottom tab bar */
+  }
+
+  .brand {
+    font-size: 1rem;
+  }
+
+  .user-menu {
+    display: none; /* shown via the settings area instead of cluttering a narrow top bar */
+  }
+
+  /* Primary tab switcher moves to a fixed bottom bar; hide the desktop pill version. */
+  .primary-nav-row .segmented {
+    display: none;
+  }
+
+  .primary-nav-row {
+    justify-content: center;
+  }
+
+  .bottom-tab-bar {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 40;
+    background: var(--bg-elevated);
+    border-top: 1px solid var(--border);
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    justify-content: space-around;
+  }
+
+  .bottom-tab-bar button {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    background: none;
+    border: none;
+    color: var(--text-faint);
+    font-size: 0.66rem;
+    font-weight: 600;
+    padding: 6px 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  .bottom-tab-bar button.active {
+    color: var(--brand-1);
+  }
+
+  .bottom-tab-icon {
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+
+  .subnav {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .subnav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .subnav-btn {
+    flex-shrink: 0;
+  }
+
+  .summary-cards {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .card {
+    padding: 14px 16px;
+  }
+
+  .card-value {
+    font-size: 1.25rem;
+  }
+
+  .panel {
+    padding: 16px;
+  }
+
+  .form-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .form-row label,
+  .form-row label.grow {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .goal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .goal-ring-row {
+    flex-wrap: wrap;
+  }
+
+  /* Card-ify tables instead of horizontal-scrolling them. */
+  .responsive-table thead {
+    display: none;
+  }
+
+  .responsive-table,
+  .responsive-table tbody,
+  .responsive-table tr,
+  .responsive-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .responsive-table tr {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    margin-bottom: 10px;
+  }
+
+  .responsive-table td {
+    border-bottom: none;
+    padding: 6px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    text-align: right;
+  }
+
+  .responsive-table td[data-label]::before {
+    content: attr(data-label);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-faint);
+    text-align: left;
+    flex-shrink: 0;
+  }
+
+  .responsive-table td.row-actions {
+    justify-content: flex-end;
+    padding-top: 8px;
+  }
+
+  .responsive-table .budget-input {
+    width: 100px;
+  }
+}
+
+@media (max-width: 420px) {
+  .summary-cards {
+    grid-template-columns: 1fr;
   }
 }

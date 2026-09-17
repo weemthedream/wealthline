@@ -24,6 +24,77 @@ function sumBy(rows, type) {
   return rows.filter((t) => t.type === type).reduce((s, t) => s + t.amount, 0);
 }
 
+function daysInMonth(month) {
+  const [y, m] = month.split('-').map(Number);
+  return new Date(y, m, 0).getDate();
+}
+
+// Auto-generated spending callouts, in the spirit of Copilot Money's insight cards:
+// biggest category swings vs. last month, and early over-budget-pace warnings.
+function buildInsights({ month, byCategory, prevByCategory, budgetProgress, income, prevIncome, expenses, prevExpenses }) {
+  const insights = [];
+  const prevTotals = Object.fromEntries(prevByCategory.map((c) => [c.categoryId, c.total]));
+
+  const swings = byCategory
+    .filter((c) => c.type === 'expense')
+    .map((c) => {
+      const prev = prevTotals[c.categoryId] || 0;
+      const delta = c.total - prev;
+      const pct = prev > 0 ? (delta / prev) * 100 : null;
+      return { ...c, prev, delta, pct };
+    })
+    .filter((c) => c.prev >= 20 && c.pct !== null && Math.abs(c.pct) >= 20)
+    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+    .slice(0, 2);
+
+  for (const s of swings) {
+    insights.push({
+      type: s.delta > 0 ? 'warning' : 'positive',
+      text:
+        s.delta > 0
+          ? `${s.name} spending is up ${Math.round(s.pct)}% vs last month ($${Math.round(s.delta)} more).`
+          : `${s.name} spending is down ${Math.round(Math.abs(s.pct))}% vs last month ($${Math.round(Math.abs(s.delta))} saved).`
+    });
+  }
+
+  const now = new Date();
+  const isCurrentMonth = month === `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  if (isCurrentMonth) {
+    const dayOfMonth = now.getDate();
+    const totalDays = daysInMonth(month);
+    const expectedPace = dayOfMonth / totalDays;
+    for (const b of budgetProgress) {
+      if (b.limit <= 0) continue;
+      const pctUsed = b.spent / b.limit;
+      if (pctUsed >= 1) {
+        insights.push({ type: 'danger', text: `${b.name} is already over budget with ${totalDays - dayOfMonth} days left in the month.` });
+      } else if (pctUsed > expectedPace * 1.3 && pctUsed > 0.5) {
+        insights.push({
+          type: 'warning',
+          text: `${b.name} is at ${Math.round(pctUsed * 100)}% of its budget, but only ${Math.round(expectedPace * 100)}% of the month has passed.`
+        });
+      }
+    }
+  }
+
+  if (insights.length === 0 && prevIncome !== undefined) {
+    if (prevExpenses > 0) {
+      const pct = ((expenses - prevExpenses) / prevExpenses) * 100;
+      if (Math.abs(pct) >= 10) {
+        insights.push({
+          type: pct > 0 ? 'warning' : 'positive',
+          text: `Overall spending is ${pct > 0 ? 'up' : 'down'} ${Math.round(Math.abs(pct))}% vs last month.`
+        });
+      }
+    }
+    if (income > 0 && expenses > 0 && income - expenses > 0) {
+      insights.push({ type: 'positive', text: `You're on pace to save $${Math.round(income - expenses)} this month.` });
+    }
+  }
+
+  return insights.slice(0, 4);
+}
+
 router.get('/', async (req, res, next) => {
   try {
     const month = req.query.month || currentMonth();
@@ -79,7 +150,28 @@ router.get('/', async (req, res, next) => {
       };
     });
 
-    res.json({ month, income, expenses, net: income - expenses, byCategory, trend, budgetProgress });
+    const prevMonth = shiftMonth(month, -1);
+    const prevTransactions = rangeTransactions.filter((t) => t.date.startsWith(prevMonth));
+    const prevTotalsByCategory = {};
+    for (const t of prevTransactions) {
+      prevTotalsByCategory[t.category_id] = (prevTotalsByCategory[t.category_id] || 0) + t.amount;
+    }
+    const prevByCategory = Object.entries(prevTotalsByCategory).map(([categoryId, total]) => {
+      const cat = categoryById[categoryId];
+      return { categoryId, type: cat ? cat.type : 'expense', total };
+    });
+    const insights = buildInsights({
+      month,
+      byCategory,
+      prevByCategory,
+      budgetProgress,
+      income,
+      prevIncome: sumBy(prevTransactions, 'income'),
+      expenses,
+      prevExpenses: sumBy(prevTransactions, 'expense')
+    });
+
+    res.json({ month, income, expenses, net: income - expenses, byCategory, trend, budgetProgress, insights });
   } catch (err) {
     next(err);
   }
