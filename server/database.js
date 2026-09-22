@@ -7,8 +7,29 @@ if (!process.env.DATABASE_URL) {
 
 const sql = neon(process.env.DATABASE_URL);
 
-// Idempotent schema setup, run once per cold start and awaited before any request is handled.
-const ready = (async () => {
+// Neon suspends idle computes (scale to zero). The first query after a suspend
+// can fail at the socket level while the compute wakes, so transient connection
+// errors get a short backoff rather than failing the request outright.
+function isTransient(err) {
+  const text = `${err?.message || ''} ${err?.sourceError?.message || ''} ${err?.sourceError?.cause?.code || ''}`;
+  return /fetch failed|other side closed|UND_ERR_SOCKET|ECONNRESET|ETIMEDOUT|EAI_AGAIN|503|502/i.test(text);
+}
+
+async function withRetry(fn, { attempts = 4, baseDelayMs = 250 } = {}) {
+  let lastError;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (!isTransient(err) || attempt === attempts - 1) throw err;
+      await new Promise((r) => setTimeout(r, baseDelayMs * 2 ** attempt));
+    }
+  }
+  throw lastError;
+}
+
+async function createSchema() {
   await sql`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -108,7 +129,22 @@ const ready = (async () => {
   await sql`CREATE INDEX IF NOT EXISTS idx_accounts_user ON accounts(user_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_account_snapshots_user ON account_snapshots(user_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_account_snapshots_account ON account_snapshots(account_id, date)`;
-})();
+}
+
+// Schema setup runs once per cold start. A rejected promise is deliberately NOT
+// cached: caching one would poison every later request on this warm instance,
+// so a single cold-start blip would take the whole app down until it recycled.
+let schemaPromise = null;
+
+function ready() {
+  if (!schemaPromise) {
+    schemaPromise = withRetry(createSchema).catch((err) => {
+      schemaPromise = null; // let the next request try again
+      throw err;
+    });
+  }
+  return schemaPromise;
+}
 
 // Expense colours follow the validated categorical slot order so a new user's
 // spending chart is CVD-safe and legible on both the light and dark surfaces.
@@ -134,4 +170,4 @@ async function seedDefaultCategories(userId) {
   }
 }
 
-module.exports = { sql, ready, seedDefaultCategories };
+module.exports = { sql, ready, seedDefaultCategories, withRetry };

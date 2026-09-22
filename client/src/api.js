@@ -1,11 +1,19 @@
 const BASE = '/api';
 
-async function request(path, options = {}) {
+// The database sleeps when idle and takes a moment to wake, which surfaces as a
+// 503. Retry those briefly so a cold start looks like a slow load, not an error.
+async function request(path, options = {}, attempt = 0) {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
     ...options
   });
+
+  if (res.status === 503 && attempt < 3) {
+    await new Promise((r) => setTimeout(r, 600 * 2 ** attempt));
+    return request(path, options, attempt + 1);
+  }
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     const err = new Error(body.error || `Request failed: ${res.status}`);

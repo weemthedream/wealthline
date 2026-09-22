@@ -26,10 +26,23 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
-// Schema setup runs once per cold start; every request waits for it to finish.
-app.use(async (req, res, next) => {
+// Liveness check — deliberately above the schema gate so it still answers when
+// the database is unreachable.
+app.get('/api/health', (req, res) => res.json({ ok: true }));
+
+app.get('/api/health/db', async (req, res) => {
   try {
-    await ready;
+    await ready();
+    res.json({ ok: true, database: 'connected' });
+  } catch (err) {
+    res.status(503).json({ ok: false, database: 'unreachable', error: err.message });
+  }
+});
+
+// Schema setup runs once per cold start; data routes wait for it to finish.
+app.use('/api', async (req, res, next) => {
+  try {
+    await ready();
     next();
   } catch (err) {
     next(err);
@@ -46,8 +59,6 @@ app.use('/api/goals', goalsRouter);
 app.use('/api/accounts', accountsRouter);
 app.use('/api/networth', networthRouter);
 
-app.get('/api/health', (req, res) => res.json({ ok: true }));
-
 // In production (self-hosted / Docker), serve the built frontend from the same
 // server so the app works as a single deployable unit. On Vercel the frontend
 // is served separately by the static build, so this is a no-op there.
@@ -62,6 +73,10 @@ if (fs.existsSync(clientDist)) {
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   console.error(err);
+  const text = `${err?.message || ''} ${err?.sourceError?.message || ''}`;
+  if (/fetch failed|other side closed|connecting to database|ECONNRESET|ETIMEDOUT/i.test(text)) {
+    return res.status(503).json({ error: 'The database is waking up. Please try again in a moment.' });
+  }
   res.status(500).json({ error: 'Internal server error' });
 });
 
