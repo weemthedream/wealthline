@@ -601,6 +601,47 @@ select:focus {
   width: 110px;
 }
 
+/* ---------- TVM / Roth IRA growth table ---------- */
+.tvm-table {
+  min-width: 640px;
+}
+
+/* Keep the Years column visible while the contribution columns scroll sideways. */
+.tvm-table th:first-child,
+.tvm-table td:first-child {
+  position: sticky;
+  left: 0;
+  background: var(--surface);
+  z-index: 1;
+}
+
+.tvm-col-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.tvm-col-suffix {
+  font-size: 0.7rem;
+  color: var(--text-faint);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.tvm-header-input {
+  width: 86px;
+  text-align: right;
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 6px 8px;
+}
+
+.tvm-remove-col {
+  font-size: 0.7rem;
+  padding: 0 2px;
+}
+
 .budget-progress-cell {
   min-width: 140px;
 }

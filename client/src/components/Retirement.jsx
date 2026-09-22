@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts';
 import { api } from '../api.js';
+import TvmTable from './TvmTable.jsx';
 
 function currency(n) {
   return n.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
@@ -335,6 +336,10 @@ export default function Retirement() {
           ))}
         </div>
       )}
+
+      <div style={{ marginTop: 20 }}>
+        <TvmTable />
+      </div>
     </div>
   );
 }
