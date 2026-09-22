@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { Plus } from 'lucide-react';
 import { api } from '../api.js';
+import { CategoryIcon } from '../categoryIcons.jsx';
 
 function currency(n) {
   return n.toLocaleString(undefined, { style: 'currency', currency: 'USD' });
@@ -122,7 +124,8 @@ export default function Bills({ month, categories, onChange }) {
         </div>
         <div className="form-actions">
           <button type="submit" className="primary-btn">
-            {editingId ? 'Save Changes' : 'Add Bill'}
+            {!editingId && <Plus size={14} />}
+            {editingId ? 'Save changes' : 'Add bill'}
           </button>
           {editingId && (
             <button type="button" className="secondary-btn" onClick={resetForm}>
@@ -155,7 +158,12 @@ export default function Bills({ month, categories, onChange }) {
                 return (
                   <tr key={b.id}>
                     <td data-label="Name">{b.name}</td>
-                    <td data-label="Category">{categoryName(b.categoryId)}</td>
+                    <td data-label="Category">
+                      <span className="cell-with-icon">
+                        <CategoryIcon name={categoryName(b.categoryId)} />
+                        {categoryName(b.categoryId)}
+                      </span>
+                    </td>
                     <td data-label="Due Day">{b.dueDay}</td>
                     <td data-label="Frequency">{b.frequency}</td>
                     <td data-label="Amount" className="align-right">{currency(b.amount)}</td>

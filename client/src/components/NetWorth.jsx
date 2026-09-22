@@ -1,24 +1,34 @@
 import React, { useEffect, useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import {
+  Plus,
+  Landmark,
+  PiggyBank,
+  TrendingUp,
+  Home,
+  CreditCard,
+  Banknote,
+  Scale,
+  ArrowUpRight,
+  ArrowDownRight
+} from 'lucide-react';
 import { api } from '../api.js';
+import { ChartTooltip, axisProps, gridProps, money } from '../chartTheme.jsx';
 
 const ACCOUNT_TYPES = [
-  { value: 'checking', label: 'Checking', isLiability: false },
-  { value: 'savings', label: 'Savings', isLiability: false },
-  { value: 'investment', label: 'Investment', isLiability: false },
-  { value: 'property', label: 'Property / Other Asset', isLiability: false },
-  { value: 'credit_card', label: 'Credit Card', isLiability: true },
-  { value: 'loan', label: 'Loan', isLiability: true },
-  { value: 'mortgage', label: 'Mortgage', isLiability: true }
+  { value: 'checking', label: 'Checking', isLiability: false, icon: Landmark },
+  { value: 'savings', label: 'Savings', isLiability: false, icon: PiggyBank },
+  { value: 'investment', label: 'Investment', isLiability: false, icon: TrendingUp },
+  { value: 'property', label: 'Property / Other Asset', isLiability: false, icon: Home },
+  { value: 'credit_card', label: 'Credit Card', isLiability: true, icon: CreditCard },
+  { value: 'loan', label: 'Loan', isLiability: true, icon: Banknote },
+  { value: 'mortgage', label: 'Mortgage', isLiability: true, icon: Home }
 ];
 
-function currency(n) {
-  return n.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
-}
+const typeInfo = (value) => ACCOUNT_TYPES.find((t) => t.value === value);
 
 function formatDateShort(dateStr) {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 const EMPTY_FORM = { name: '', type: 'checking', balance: '' };
@@ -46,12 +56,11 @@ export default function NetWorth() {
   const submit = async (e) => {
     e.preventDefault();
     if (!form.name || form.balance === '') return;
-    const typeInfo = ACCOUNT_TYPES.find((t) => t.value === form.type);
     try {
       const payload = {
         name: form.name,
         type: form.type,
-        isLiability: typeInfo.isLiability,
+        isLiability: typeInfo(form.type).isLiability,
         balance: Number(form.balance)
       };
       if (editingId) {
@@ -91,91 +100,118 @@ export default function NetWorth() {
   const liabilityAccounts = data.accounts.filter((a) => a.isLiability);
   const chartData = data.history.map((h) => ({ ...h, label: formatDateShort(h.date) }));
 
-  const renderAccountRow = (account) => (
-    <div className="account-row" key={account.id}>
-      <span className="color-dot" style={{ background: account.color }} />
-      <div className="account-row-main">
-        <div className="account-row-name">{account.name}</div>
-        <div className="account-row-type">{ACCOUNT_TYPES.find((t) => t.value === account.type)?.label || account.type}</div>
+  const renderAccountRow = (account) => {
+    const info = typeInfo(account.type);
+    const Icon = info?.icon || Landmark;
+    return (
+      <div className="account-row" key={account.id}>
+        <span className="account-icon">
+          <Icon size={15} />
+        </span>
+        <div className="account-row-main">
+          <div className="account-row-name">{account.name}</div>
+          <div className="account-row-type">{info?.label || account.type}</div>
+        </div>
+        <input
+          type="number"
+          step="0.01"
+          className="budget-input"
+          defaultValue={account.balance}
+          onChange={(e) => setBalanceDrafts({ ...balanceDrafts, [account.id]: e.target.value })}
+          onBlur={() => saveBalance(account)}
+          aria-label={`${account.name} balance`}
+        />
+        <div className="row-actions">
+          <button className="link-btn" onClick={() => edit(account)}>
+            Edit
+          </button>
+          <button className="link-btn danger" onClick={() => remove(account.id)}>
+            Delete
+          </button>
+        </div>
       </div>
-      <input
-        type="number"
-        step="0.01"
-        className="budget-input"
-        defaultValue={account.balance}
-        onChange={(e) => setBalanceDrafts({ ...balanceDrafts, [account.id]: e.target.value })}
-        onBlur={() => saveBalance(account)}
-      />
-      <div className="row-actions">
-        <button className="link-btn" onClick={() => edit(account)}>
-          Edit
-        </button>
-        <button className="link-btn danger" onClick={() => remove(account.id)}>
-          Delete
-        </button>
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="net-worth">
       <div className="summary-cards">
         <div className={`card net ${data.netWorth >= 0 ? 'positive' : 'negative'}`}>
-          <div className="card-icon">Σ</div>
-          <div className="card-label">Net Worth</div>
-          <div className="card-value">{currency(data.netWorth)}</div>
+          <div className="card-top">
+            <span className="card-icon">
+              <Scale size={15} />
+            </span>
+            <span className="card-label">Net Worth</span>
+          </div>
+          <div className="card-value">{money(data.netWorth)}</div>
         </div>
         <div className="card income">
-          <div className="card-icon">↑</div>
-          <div className="card-label">Total Assets</div>
-          <div className="card-value">{currency(data.totalAssets)}</div>
+          <div className="card-top">
+            <span className="card-icon">
+              <ArrowUpRight size={15} />
+            </span>
+            <span className="card-label">Total Assets</span>
+          </div>
+          <div className="card-value">{money(data.totalAssets)}</div>
         </div>
         <div className="card expense">
-          <div className="card-icon">↓</div>
-          <div className="card-label">Total Liabilities</div>
-          <div className="card-value">{currency(data.totalLiabilities)}</div>
+          <div className="card-top">
+            <span className="card-icon">
+              <ArrowDownRight size={15} />
+            </span>
+            <span className="card-label">Total Liabilities</span>
+          </div>
+          <div className="card-value">{money(data.totalLiabilities)}</div>
         </div>
       </div>
 
       <div className="panel">
         <h3>Net Worth Over Time</h3>
         {chartData.length < 2 ? (
-          <p className="empty-hint">Update an account balance on a different day to start building your net worth trend.</p>
+          <p className="empty-hint" style={{ marginTop: 6 }}>
+            Update an account balance on a different day to start building your net worth trend.
+          </p>
         ) : (
-          <ResponsiveContainer width="100%" height={260}>
-            <AreaChart data={chartData}>
+          <ResponsiveContainer width="100%" height={280}>
+            <AreaChart data={chartData} margin={{ top: 10, right: 8, bottom: 0, left: 0 }}>
               <defs>
                 <linearGradient id="netWorthGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--brand-1)" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="var(--brand-1)" stopOpacity={0} />
+                  <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.25} />
+                  <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.15} vertical={false} />
-              <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 12 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 12 }} axisLine={false} tickLine={false} width={56} />
-              <Tooltip
-                formatter={(value) => currency(value)}
-                contentStyle={{ borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
+              <CartesianGrid {...gridProps} />
+              <XAxis dataKey="label" {...axisProps} />
+              <YAxis {...axisProps} width={58} tickFormatter={(v) => money(v, { compact: true })} />
+              <Tooltip content={<ChartTooltip />} cursor={{ stroke: 'var(--border-strong)', strokeWidth: 1 }} />
+              <Area
+                type="monotone"
+                dataKey="netWorth"
+                stroke="var(--accent)"
+                fill="url(#netWorthGrad)"
+                strokeWidth={2}
+                name="Net Worth"
+                activeDot={{ r: 4, strokeWidth: 2, stroke: 'var(--surface)' }}
               />
-              <Area type="monotone" dataKey="netWorth" stroke="var(--brand-1)" fill="url(#netWorthGrad)" strokeWidth={2.5} name="Net Worth" />
             </AreaChart>
           </ResponsiveContainer>
         )}
       </div>
 
-      <div className="panel-head" style={{ marginTop: 4 }}>
-        <h3 style={{ margin: 0 }}>Accounts</h3>
+      <div className="section-head">
+        <h2>Accounts</h2>
         {!showForm && (
           <button className="primary-btn" onClick={() => setShowForm(true)}>
-            + Add Account
+            <Plus size={14} />
+            Add account
           </button>
         )}
       </div>
 
       {showForm && (
         <form className="panel" onSubmit={submit}>
-          <h3>{editingId ? 'Edit Account' : 'New Account'}</h3>
-          <div className="form-row">
+          <h3>{editingId ? 'Edit account' : 'New account'}</h3>
+          <div className="form-row" style={{ marginTop: 14 }}>
             <label className="grow">
               Name
               <input
@@ -209,7 +245,7 @@ export default function NetWorth() {
           </div>
           <div className="form-actions">
             <button type="submit" className="primary-btn">
-              {editingId ? 'Save Changes' : 'Add Account'}
+              {editingId ? 'Save changes' : 'Add account'}
             </button>
             <button type="button" className="secondary-btn" onClick={resetForm}>
               Cancel
@@ -220,7 +256,9 @@ export default function NetWorth() {
 
       {data.accounts.length === 0 && !showForm ? (
         <div className="empty-state">
-          <div className="empty-state-icon">🏦</div>
+          <div className="empty-state-icon">
+            <Landmark size={28} strokeWidth={1.5} />
+          </div>
           <p>No accounts yet. Add your checking, savings, and cards to track your net worth.</p>
         </div>
       ) : (
@@ -228,17 +266,25 @@ export default function NetWorth() {
           <div className="panel">
             <h3>Assets</h3>
             {assetAccounts.length === 0 ? (
-              <p className="empty-hint">No asset accounts yet.</p>
+              <p className="empty-hint" style={{ marginTop: 6 }}>
+                No asset accounts yet.
+              </p>
             ) : (
-              <div className="account-list">{assetAccounts.map(renderAccountRow)}</div>
+              <div className="account-list" style={{ marginTop: 6 }}>
+                {assetAccounts.map(renderAccountRow)}
+              </div>
             )}
           </div>
           <div className="panel">
             <h3>Liabilities</h3>
             {liabilityAccounts.length === 0 ? (
-              <p className="empty-hint">No liability accounts yet.</p>
+              <p className="empty-hint" style={{ marginTop: 6 }}>
+                No liability accounts yet.
+              </p>
             ) : (
-              <div className="account-list">{liabilityAccounts.map(renderAccountRow)}</div>
+              <div className="account-list" style={{ marginTop: 6 }}>
+                {liabilityAccounts.map(renderAccountRow)}
+              </div>
             )}
           </div>
         </div>

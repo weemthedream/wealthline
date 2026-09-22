@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { api } from '../api.js';
-import { iconForCategory } from '../categoryIcons.js';
+import { X, Plus } from 'lucide-react';
+import { CategoryIcon } from '../categoryIcons.jsx';
 
 const EMPTY_NEW = { name: '', type: 'expense', color: '#6366f1' };
 
@@ -70,7 +71,7 @@ export default function CategoriesDrawer({ categories, onClose, onChange }) {
 
   const renderRow = (category) => (
     <div className="category-row" key={category.id}>
-      <span className="category-icon">{iconForCategory(category.name)}</span>
+      <CategoryIcon name={category.name} size={15} />
       <input
         type="color"
         value={category.color}
@@ -99,7 +100,7 @@ export default function CategoriesDrawer({ categories, onClose, onChange }) {
         <div className="drawer-head">
           <h3 style={{ margin: 0 }}>Manage Categories</h3>
           <button className="icon-btn" onClick={onClose} aria-label="Close">
-            ✕
+            <X size={16} />
           </button>
         </div>
 
@@ -170,6 +171,7 @@ export default function CategoriesDrawer({ categories, onClose, onChange }) {
             />
           </label>
           <button type="submit" className="primary-btn">
+            <Plus size={14} />
             Add
           </button>
         </form>

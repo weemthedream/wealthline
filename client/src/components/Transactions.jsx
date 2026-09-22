@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Download, Search, Plus } from 'lucide-react';
 import { api } from '../api.js';
+import { CategoryIcon } from '../categoryIcons.jsx';
 
 function currency(n) {
   return n.toLocaleString(undefined, { style: 'currency', currency: 'USD' });
@@ -150,7 +152,8 @@ export default function Transactions({ month, categories, onChange }) {
         </div>
         <div className="form-actions">
           <button type="submit" className="primary-btn">
-            {editingId ? 'Save Changes' : 'Add Transaction'}
+            {!editingId && <Plus size={14} />}
+            {editingId ? 'Save changes' : 'Add transaction'}
           </button>
           {editingId && (
             <button type="button" className="secondary-btn" onClick={resetForm}>
@@ -162,19 +165,31 @@ export default function Transactions({ month, categories, onChange }) {
 
       <div className="panel">
         <div className="panel-head">
-          <h3>Transactions this month</h3>
+          <div>
+            <h3>Transactions</h3>
+            <p className="empty-hint" style={{ margin: 0 }}>
+              {visibleTransactions.length} of {transactions.length} this month
+            </p>
+          </div>
           <button className="secondary-btn" onClick={exportCsv} disabled={visibleTransactions.length === 0}>
+            <Download size={14} />
             Export CSV
           </button>
         </div>
         <div className="filter-row">
-          <input
-            type="text"
-            placeholder="Search description or category…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="grow"
-          />
+          <div style={{ position: 'relative', flex: 1, minWidth: 180, display: 'flex' }}>
+            <Search
+              size={14}
+              style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-faint)' }}
+            />
+            <input
+              type="text"
+              placeholder="Search description or category…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ paddingLeft: 30, width: '100%' }}
+            />
+          </div>
           <select value={filterCategoryId} onChange={(e) => setFilterCategoryId(e.target.value)}>
             <option value="">All categories</option>
             {categories.map((c) => (
@@ -203,7 +218,12 @@ export default function Transactions({ month, categories, onChange }) {
               {visibleTransactions.map((t) => (
                 <tr key={t.id}>
                   <td data-label="Date">{t.date}</td>
-                  <td data-label="Category">{categoryName(t.categoryId)}</td>
+                  <td data-label="Category">
+                    <span className="cell-with-icon">
+                      <CategoryIcon name={categoryName(t.categoryId)} />
+                      {categoryName(t.categoryId)}
+                    </span>
+                  </td>
                   <td data-label="Description">{t.description}</td>
                   <td data-label="Amount" className={`align-right ${t.type === 'income' ? 'text-income' : 'text-expense'}`}>
                     {t.type === 'income' ? '+' : '-'}

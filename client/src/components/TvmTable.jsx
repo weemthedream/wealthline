@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from 'react';
-
-function currency(n) {
-  return n.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
-}
+import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { Plus, X } from 'lucide-react';
+import { ChartTooltip, axisProps, gridProps, money, SERIES } from '../chartTheme.jsx';
 
 const YEAR_ROWS = [5, 10, 15, 20, 25, 30, 35, 40];
+const MAX_YEARS = 40;
 const DEFAULT_CONTRIBUTIONS = [3000, 5000, 7000, 10000];
 
 // Future value of a starting balance plus a fixed contribution made at the end
@@ -16,6 +16,8 @@ function futureValue(startingBalance, annualContribution, ratePct, years) {
   const fromContributions = r === 0 ? annualContribution * years : annualContribution * ((growth - 1) / r);
   return fromStart + fromContributions;
 }
+
+const seriesKey = (i) => `s${i}`;
 
 export default function TvmTable() {
   const [rate, setRate] = useState(8);
@@ -29,7 +31,7 @@ export default function TvmTable() {
   };
 
   const addColumn = () => {
-    if (contributions.length >= 6) return;
+    if (contributions.length >= SERIES.length) return;
     const last = contributions[contributions.length - 1] || 1000;
     setContributions([...contributions, last + 1000]);
   };
@@ -39,30 +41,47 @@ export default function TvmTable() {
     setContributions(contributions.filter((_, i) => i !== index));
   };
 
+  const numericRate = Number(rate) || 0;
+  const numericStart = Number(startingBalance) || 0;
+
   const rows = useMemo(
     () =>
       YEAR_ROWS.map((years) => ({
         years,
-        values: contributions.map((c) => futureValue(Number(startingBalance) || 0, c, Number(rate) || 0, years))
+        values: contributions.map((c) => futureValue(numericStart, c, numericRate, years))
       })),
-    [contributions, rate, startingBalance]
+    [contributions, numericRate, numericStart]
   );
+
+  // One point per year so the compounding curve reads smoothly.
+  const chartData = useMemo(() => {
+    const points = [];
+    for (let year = 0; year <= MAX_YEARS; year++) {
+      const point = { year };
+      contributions.forEach((c, i) => {
+        point[seriesKey(i)] = futureValue(numericStart, c, numericRate, year);
+      });
+      points.push(point);
+    }
+    return points;
+  }, [contributions, numericRate, numericStart]);
 
   return (
     <div className="panel">
       <div className="panel-head">
         <div>
-          <h3 style={{ marginBottom: 2 }}>Roth IRA Growth Table</h3>
+          <h3>Roth IRA Growth</h3>
           <p className="empty-hint" style={{ margin: 0 }}>
-            Future value at different annual contribution levels, compounded yearly.
+            Projected value at different annual contribution levels, compounded yearly.
           </p>
         </div>
-        <button className="secondary-btn" onClick={addColumn} disabled={contributions.length >= 6}>
-          + Add Column
+        <button className="secondary-btn" onClick={addColumn} disabled={contributions.length >= SERIES.length}>
+          <Plus size={14} />
+          Add scenario
         </button>
       </div>
 
-      <div className="form-row" style={{ marginTop: 14 }}>
+      <div className="form-row" style={{ marginTop: 16 }}>
         <label>
           Growth rate (%/yr)
           <input type="number" min="0" max="30" step="0.1" value={rate} onChange={(e) => setRate(e.target.value)} />
@@ -79,7 +98,38 @@ export default function TvmTable() {
         </label>
       </div>
 
-      <div style={{ overflowX: 'auto' }}>
+      <ResponsiveContainer width="100%" height={320}>
+        <LineChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+          <CartesianGrid {...gridProps} />
+          <XAxis
+            dataKey="year"
+            {...axisProps}
+            ticks={[0, 5, 10, 15, 20, 25, 30, 35, 40]}
+            tickFormatter={(v) => (v === 0 ? 'Now' : `${v}y`)}
+          />
+          <YAxis {...axisProps} width={56} tickFormatter={(v) => money(v, { compact: true })} />
+          <Tooltip
+            content={<ChartTooltip />}
+            labelFormatter={(y) => (y === 0 ? 'Today' : `After ${y} year${y === 1 ? '' : 's'}`)}
+            cursor={{ stroke: 'var(--border-strong)', strokeWidth: 1 }}
+          />
+          <Legend iconType="line" iconSize={14} wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+          {contributions.map((c, i) => (
+            <Line
+              key={i}
+              type="monotone"
+              dataKey={seriesKey(i)}
+              name={`$${c.toLocaleString()}/yr`}
+              stroke={SERIES[i]}
+              strokeWidth={2}
+              dot={false}
+              activeDot={{ r: 4, strokeWidth: 2, stroke: 'var(--surface)' }}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+
+      <div className="scroll-x" style={{ marginTop: 18 }}>
         <table className="data-table tvm-table">
           <thead>
             <tr>
@@ -87,6 +137,7 @@ export default function TvmTable() {
               {contributions.map((c, i) => (
                 <th key={i}>
                   <div className="tvm-col-head">
+                    <span className="tvm-swatch" style={{ background: SERIES[i] }} />
                     <input
                       type="number"
                       min="0"
@@ -94,11 +145,17 @@ export default function TvmTable() {
                       className="tvm-header-input"
                       value={c}
                       onChange={(e) => updateContribution(i, e.target.value)}
+                      aria-label={`Annual contribution for scenario ${i + 1}`}
                     />
                     <span className="tvm-col-suffix">/yr</span>
                     {contributions.length > 1 && (
-                      <button className="link-btn danger tvm-remove-col" onClick={() => removeColumn(i)} title="Remove column">
-                        ✕
+                      <button
+                        className="link-btn danger tvm-remove-col"
+                        onClick={() => removeColumn(i)}
+                        title="Remove scenario"
+                        aria-label="Remove scenario"
+                      >
+                        <X size={12} />
                       </button>
                     )}
                   </div>
@@ -109,10 +166,10 @@ export default function TvmTable() {
           <tbody>
             {rows.map((row) => (
               <tr key={row.years}>
-                <td data-label="Years">{row.years}</td>
+                <td>{row.years}</td>
                 {row.values.map((v, i) => (
-                  <td data-label={`$${contributions[i].toLocaleString()}/yr`} key={i} className="align-right">
-                    {currency(v)}
+                  <td key={i} className="align-right">
+                    {money(v)}
                   </td>
                 ))}
               </tr>
@@ -121,9 +178,10 @@ export default function TvmTable() {
         </table>
       </div>
 
-      <p className="empty-hint" style={{ marginTop: 12, marginBottom: 0 }}>
-        Assumes contributions are made at the end of each year and grow at a fixed {rate}% annual rate — a simplified
-        projection, not a guarantee of investment returns. Roth IRA contribution limits apply in real accounts.
+      <p className="chart-note">
+        Assumes contributions are made at the end of each year and grow at a fixed {numericRate}% annual rate — a
+        simplified projection, not a guarantee of investment returns. Roth IRA contribution limits apply in real
+        accounts.
       </p>
     </div>
   );

@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts';
+import { Plus, Target, Check, AlertTriangle } from 'lucide-react';
 import { api } from '../api.js';
+import { ChartTooltip, axisProps, gridProps, money } from '../chartTheme.jsx';
 import TvmTable from './TvmTable.jsx';
 
-function currency(n) {
-  return n.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
-}
+const currency = money;
 
 function monthsBetween(from, to) {
   const months = (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
@@ -68,7 +68,7 @@ function ProgressRing({ pct, color }) {
         transform={`rotate(-90 ${size / 2} ${size / 2})`}
         style={{ transition: 'stroke-dashoffset 0.5s ease' }}
       />
-      <text x="50%" y="52%" textAnchor="middle" fontSize="16" fontWeight="800" fill="var(--text)">
+      <text x="50%" y="52%" textAnchor="middle" fontSize="15" fontWeight="650" fill="var(--text)">
         {clamped.toFixed(0)}%
       </text>
     </svg>
@@ -113,7 +113,7 @@ function GoalCard({ goal, onEdit, onDelete }) {
       </div>
 
       <div className="goal-ring-row">
-        <ProgressRing pct={pctToGoal} color="var(--goal)" />
+        <ProgressRing pct={pctToGoal} color="var(--accent)" />
         <div className="goal-stats">
           <div className="goal-stat-line">
             <span>Current</span>
@@ -135,29 +135,44 @@ function GoalCard({ goal, onEdit, onDelete }) {
       </div>
 
       <div className={`goal-status ${onTrack ? 'on-track' : 'behind'}`}>
-        {onTrack ? '✓ On track' : `⚠ Behind — need ${currency(Math.max(0, requiredContribution))}/mo`}
+        {onTrack ? (
+          <>
+            <Check size={13} /> On track
+          </>
+        ) : (
+          <>
+            <AlertTriangle size={13} /> Behind — need {currency(Math.max(0, requiredContribution))}/mo
+          </>
+        )}
       </div>
 
       {months > 1 && (
         <div style={{ marginTop: 14 }}>
           <ResponsiveContainer width="100%" height={140}>
             <LineChart data={series}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.15} vertical={false} />
+              <CartesianGrid {...gridProps} />
               <XAxis dataKey="month" tick={false} axisLine={false} tickLine={false} />
-              <YAxis
-                tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
-                axisLine={false}
-                tickLine={false}
-                width={44}
-                tickFormatter={(v) => `${Math.round(v / 1000)}k`}
-              />
+              <YAxis {...axisProps} width={50} tickFormatter={(v) => money(v, { compact: true })} />
               <Tooltip
-                formatter={(value) => currency(value)}
+                content={<ChartTooltip />}
                 labelFormatter={(m) => `Month ${m}`}
-                contentStyle={{ borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
+                cursor={{ stroke: 'var(--border-strong)', strokeWidth: 1 }}
               />
-              <ReferenceLine y={goal.targetAmount} stroke="var(--goal)" strokeDasharray="4 4" />
-              <Line type="monotone" dataKey="balance" stroke="var(--goal)" strokeWidth={2.5} dot={false} />
+              <ReferenceLine
+                y={goal.targetAmount}
+                stroke="var(--text-faint)"
+                strokeWidth={1}
+                label={{ value: 'Target', position: 'insideTopRight', fill: 'var(--text-faint)', fontSize: 10 }}
+              />
+              <Line
+                type="monotone"
+                dataKey="balance"
+                name="Projected balance"
+                stroke="var(--accent)"
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 2, stroke: 'var(--surface)' }}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -231,16 +246,17 @@ export default function Retirement() {
     <div className="retirement">
       {error && <div className="error-box">{error}</div>}
 
-      <div className="panel-head" style={{ marginBottom: 16 }}>
+      <div className="section-head">
         <div>
-          <h3 style={{ marginBottom: 2 }}>Retirement & Savings Goals</h3>
+          <h2>Retirement &amp; Savings Goals</h2>
           <p className="empty-hint" style={{ margin: 0 }}>
             Set a target and see whether your current savings pace gets you there.
           </p>
         </div>
         {!showForm && (
           <button className="primary-btn" onClick={() => setShowForm(true)}>
-            + New Goal
+            <Plus size={14} />
+            New goal
           </button>
         )}
       </div>
@@ -326,7 +342,9 @@ export default function Retirement() {
 
       {goals.length === 0 && !showForm ? (
         <div className="empty-state">
-          <div className="empty-state-icon">🎯</div>
+          <div className="empty-state-icon">
+            <Target size={28} strokeWidth={1.5} />
+          </div>
           <p>No goals yet. Create one to start projecting your retirement or savings timeline.</p>
         </div>
       ) : (

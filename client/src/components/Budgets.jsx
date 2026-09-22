@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
-import { iconForCategory } from '../categoryIcons.js';
+import { CategoryIcon } from '../categoryIcons.jsx';
 
 function currency(n) {
   return n.toLocaleString(undefined, { style: 'currency', currency: 'USD' });
@@ -79,9 +79,11 @@ export default function Budgets({ month, categories, onChange }) {
               return (
                 <tr key={c.id}>
                   <td data-label="Category">
-                    <span className="category-icon">{iconForCategory(c.name)}</span>
-                    <span className="color-dot" style={{ background: c.color }} />
-                    {c.name}
+                    <span className="cell-with-icon">
+                      <CategoryIcon name={c.name} />
+                      <span className="color-dot" style={{ background: c.color }} />
+                      {c.name}
+                    </span>
                   </td>
                   <td data-label="Spent">{currency(spent)}</td>
                   <td data-label="Limit">

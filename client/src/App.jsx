@@ -1,4 +1,17 @@
 import React, { useEffect, useState } from 'react';
+import {
+  CalendarDays,
+  BarChart3,
+  Landmark,
+  Target,
+  Sun,
+  Moon,
+  Settings2,
+  LogOut,
+  ChevronLeft,
+  ChevronRight,
+  Wallet
+} from 'lucide-react';
 import Dashboard from './components/Dashboard.jsx';
 import Transactions from './components/Transactions.jsx';
 import Budgets from './components/Budgets.jsx';
@@ -35,10 +48,10 @@ const MONTH_SUBTABS = [
 ];
 
 const PRIMARY_TABS = [
-  { id: 'month', label: '1 Month', icon: '📅' },
-  { id: 'year', label: '1 Year', icon: '📊' },
-  { id: 'networth', label: 'Net Worth', icon: '🏦' },
-  { id: 'retirement', label: 'Retirement', icon: '🎯' }
+  { id: 'month', label: 'Month', icon: CalendarDays },
+  { id: 'year', label: 'Year', icon: BarChart3 },
+  { id: 'networth', label: 'Net Worth', icon: Landmark },
+  { id: 'retirement', label: 'Retirement', icon: Target }
 ];
 
 function MainApp({ user, onLogout, theme, setTheme }) {
@@ -61,7 +74,9 @@ function MainApp({ user, onLogout, theme, setTheme }) {
       <header className="topbar">
         <div className="topbar-inner">
           <div className="brand">
-            <span className="brand-mark">W</span>
+            <span className="brand-mark">
+              <Wallet size={15} strokeWidth={2.25} />
+            </span>
             Wealthline
           </div>
           <div className="topbar-actions">
@@ -72,7 +87,7 @@ function MainApp({ user, onLogout, theme, setTheme }) {
               aria-label="Toggle theme"
               title="Toggle light / dark theme"
             >
-              {theme === 'dark' ? '☀️' : '🌙'}
+              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
             </button>
             <button
               className="icon-btn"
@@ -80,13 +95,14 @@ function MainApp({ user, onLogout, theme, setTheme }) {
               aria-label="Manage categories"
               title="Manage categories"
             >
-              ⚙️
+              <Settings2 size={16} />
             </button>
             <button className="icon-btn" onClick={onLogout} aria-label="Log out" title="Log out">
-              ⏻
+              <LogOut size={16} />
             </button>
           </div>
         </div>
+
         <div className="primary-nav-row">
           <div className="segmented">
             {PRIMARY_TABS.map((t) => (
@@ -99,11 +115,11 @@ function MainApp({ user, onLogout, theme, setTheme }) {
           {primaryTab === 'month' && (
             <div className="period-switcher">
               <button className="icon-btn" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month">
-                ‹
+                <ChevronLeft size={16} />
               </button>
               <span className="period-label">{formatMonthLabel(month)}</span>
               <button className="icon-btn" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Next month">
-                ›
+                <ChevronRight size={16} />
               </button>
             </div>
           )}
@@ -111,11 +127,11 @@ function MainApp({ user, onLogout, theme, setTheme }) {
           {primaryTab === 'year' && (
             <div className="period-switcher">
               <button className="icon-btn" onClick={() => setYear(year - 1)} aria-label="Previous year">
-                ‹
+                <ChevronLeft size={16} />
               </button>
               <span className="period-label">{year}</span>
               <button className="icon-btn" onClick={() => setYear(year + 1)} aria-label="Next year">
-                ›
+                <ChevronRight size={16} />
               </button>
             </div>
           )}
@@ -149,19 +165,20 @@ function MainApp({ user, onLogout, theme, setTheme }) {
         )}
 
         {primaryTab === 'year' && <YearView year={year} refreshKey={refreshKey} />}
-
         {primaryTab === 'networth' && <NetWorth />}
-
         {primaryTab === 'retirement' && <Retirement />}
       </main>
 
       <nav className="bottom-tab-bar">
-        {PRIMARY_TABS.map((t) => (
-          <button key={t.id} className={primaryTab === t.id ? 'active' : ''} onClick={() => setPrimaryTab(t.id)}>
-            <span className="bottom-tab-icon">{t.icon}</span>
-            <span className="bottom-tab-label">{t.label}</span>
-          </button>
-        ))}
+        {PRIMARY_TABS.map((t) => {
+          const Icon = t.icon;
+          return (
+            <button key={t.id} className={primaryTab === t.id ? 'active' : ''} onClick={() => setPrimaryTab(t.id)}>
+              <Icon size={19} strokeWidth={2} />
+              <span>{t.label}</span>
+            </button>
+          );
+        })}
       </nav>
 
       {showCategories && (
@@ -183,6 +200,7 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.style.colorScheme = theme;
     localStorage.setItem('wealthline-theme', theme);
   }, [theme]);
 

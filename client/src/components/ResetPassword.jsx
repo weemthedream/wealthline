@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Wallet } from 'lucide-react';
 import { api } from '../api.js';
 
 export default function ResetPassword({ token, onDone }) {
@@ -28,8 +29,10 @@ export default function ResetPassword({ token, onDone }) {
   return (
     <div className="auth-screen">
       <div className="auth-card">
-        <div className="brand" style={{ justifyContent: 'center', marginBottom: 18 }}>
-          <span className="brand-mark">W</span>
+        <div className="brand" style={{ justifyContent: 'center', marginBottom: 20 }}>
+          <span className="brand-mark">
+            <Wallet size={15} strokeWidth={2.25} />
+          </span>
           Wealthline
         </div>
         <h2 style={{ textAlign: 'center', marginTop: 0 }}>Set a new password</h2>

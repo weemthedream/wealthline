@@ -110,17 +110,19 @@ const ready = (async () => {
   await sql`CREATE INDEX IF NOT EXISTS idx_account_snapshots_account ON account_snapshots(account_id, date)`;
 })();
 
+// Expense colours follow the validated categorical slot order so a new user's
+// spending chart is CVD-safe and legible on both the light and dark surfaces.
 const DEFAULT_CATEGORIES = [
-  { name: 'Salary', type: 'income', color: '#22c55e' },
-  { name: 'Freelance', type: 'income', color: '#4ade80' },
-  { name: 'Other Income', type: 'income', color: '#86efac' },
-  { name: 'Groceries', type: 'expense', color: '#fb923c' },
-  { name: 'Rent', type: 'expense', color: '#f43f5e' },
-  { name: 'Utilities', type: 'expense', color: '#3b82f6' },
-  { name: 'Transport', type: 'expense', color: '#8b5cf6' },
-  { name: 'Dining Out', type: 'expense', color: '#ec4899' },
-  { name: 'Entertainment', type: 'expense', color: '#f59e0b' },
-  { name: 'Other', type: 'expense', color: '#64748b' }
+  { name: 'Salary', type: 'income', color: '#199e70' },
+  { name: 'Freelance', type: 'income', color: '#1baf7a' },
+  { name: 'Other Income', type: 'income', color: '#008300' },
+  { name: 'Groceries', type: 'expense', color: '#3987e5' },
+  { name: 'Rent', type: 'expense', color: '#d95926' },
+  { name: 'Utilities', type: 'expense', color: '#199e70' },
+  { name: 'Transport', type: 'expense', color: '#c98500' },
+  { name: 'Dining Out', type: 'expense', color: '#d55181' },
+  { name: 'Entertainment', type: 'expense', color: '#9085e9' },
+  { name: 'Other', type: 'expense', color: '#71717a' }
 ];
 
 async function seedDefaultCategories(userId) {
