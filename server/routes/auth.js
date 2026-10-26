@@ -10,9 +10,32 @@ function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+// Registration gating. With real bank data in the database, open signup is a
+// liability — set SIGNUP_DISABLED=true to close it entirely, or
+// SIGNUP_INVITE_CODE=<secret> to require an invite code.
+const SIGNUP_DISABLED = process.env.SIGNUP_DISABLED === 'true';
+const SIGNUP_INVITE_CODE = process.env.SIGNUP_INVITE_CODE || '';
+
+function timingSafeEqual(a, b) {
+  const bufA = Buffer.from(String(a));
+  const bufB = Buffer.from(String(b));
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+router.get('/config', (req, res) => {
+  res.json({ signupEnabled: !SIGNUP_DISABLED, inviteRequired: !SIGNUP_DISABLED && Boolean(SIGNUP_INVITE_CODE) });
+});
+
 router.post('/signup', async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    if (SIGNUP_DISABLED) {
+      return res.status(403).json({ error: 'Registration is closed on this instance.' });
+    }
+    const { email, password, inviteCode } = req.body;
+    if (SIGNUP_INVITE_CODE && !timingSafeEqual(inviteCode || '', SIGNUP_INVITE_CODE)) {
+      return res.status(403).json({ error: 'That invite code is not valid.' });
+    }
     if (!email || !password || password.length < 8) {
       return res.status(400).json({ error: 'Email and a password of at least 8 characters are required' });
     }

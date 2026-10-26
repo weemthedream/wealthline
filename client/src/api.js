@@ -26,10 +26,12 @@ async function request(path, options = {}, attempt = 0) {
 }
 
 export const api = {
-  signup: (email, password) => request('/auth/signup', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  signup: (email, password, inviteCode) =>
+    request('/auth/signup', { method: 'POST', body: JSON.stringify({ email, password, inviteCode }) }),
   login: (email, password) => request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   logout: () => request('/auth/logout', { method: 'POST' }),
   me: () => request('/auth/me'),
+  authConfig: () => request('/auth/config'),
   forgotPassword: (email) => request('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
   resetPassword: (token, password) =>
     request('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
@@ -45,6 +47,8 @@ export const api = {
   createTransaction: (data) => request('/transactions', { method: 'POST', body: JSON.stringify(data) }),
   updateTransaction: (id, data) => request(`/transactions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteTransaction: (id) => request(`/transactions/${id}`, { method: 'DELETE' }),
+  importTransactions: (transactions) =>
+    request('/transactions/import', { method: 'POST', body: JSON.stringify({ transactions }) }),
 
   getBudgets: (month) => request(`/budgets${month ? `?month=${month}` : ''}`),
   upsertBudget: (data) => request('/budgets', { method: 'POST', body: JSON.stringify(data) }),

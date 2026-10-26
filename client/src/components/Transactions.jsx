@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Download, Search, Plus } from 'lucide-react';
+import { Download, Search, Plus, Upload } from 'lucide-react';
 import { api } from '../api.js';
 import { CategoryIcon } from '../categoryIcons.jsx';
+import ImportCsv from './ImportCsv.jsx';
 
 function currency(n) {
   return n.toLocaleString(undefined, { style: 'currency', currency: 'USD' });
@@ -31,6 +32,7 @@ export default function Transactions({ month, categories, onChange }) {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [filterCategoryId, setFilterCategoryId] = useState('');
+  const [showImport, setShowImport] = useState(false);
 
   const load = () => {
     api.getTransactions(month).then(setTransactions).catch((e) => setError(e.message));
@@ -171,10 +173,16 @@ export default function Transactions({ month, categories, onChange }) {
               {visibleTransactions.length} of {transactions.length} this month
             </p>
           </div>
-          <button className="secondary-btn" onClick={exportCsv} disabled={visibleTransactions.length === 0}>
-            <Download size={14} />
-            Export CSV
-          </button>
+          <div className="form-actions">
+            <button className="primary-btn" onClick={() => setShowImport(true)}>
+              <Upload size={14} />
+              Import CSV
+            </button>
+            <button className="secondary-btn" onClick={exportCsv} disabled={visibleTransactions.length === 0}>
+              <Download size={14} />
+              Export
+            </button>
+          </div>
         </div>
         <div className="filter-row">
           <div style={{ position: 'relative', flex: 1, minWidth: 180, display: 'flex' }}>
@@ -243,6 +251,17 @@ export default function Transactions({ month, categories, onChange }) {
           </table>
         )}
       </div>
+
+      {showImport && (
+        <ImportCsv
+          categories={categories}
+          onClose={() => setShowImport(false)}
+          onImported={() => {
+            load();
+            onChange();
+          }}
+        />
+      )}
     </div>
   );
 }

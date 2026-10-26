@@ -83,4 +83,69 @@ router.delete('/:id', async (req, res, next) => {
   }
 });
 
+const fingerprint = (t) =>
+  [t.date, Number(t.amount).toFixed(2), t.type, (t.description || '').trim().toLowerCase()].join('|');
+
+// Bulk import from a bank/credit-card CSV. Re-importing an overlapping export is
+// the normal case, so anything matching an existing row on date + amount + type +
+// description is skipped rather than duplicated.
+router.post('/import', async (req, res, next) => {
+  try {
+    const incoming = Array.isArray(req.body?.transactions) ? req.body.transactions : null;
+    if (!incoming || incoming.length === 0) {
+      return res.status(400).json({ error: 'No transactions supplied' });
+    }
+    if (incoming.length > 2000) {
+      return res.status(413).json({ error: 'Too many rows in one import — split the file (2000 max).' });
+    }
+
+    const validCategories = new Set(
+      (await sql`SELECT id FROM categories WHERE user_id = ${req.userId}`).map((c) => c.id)
+    );
+
+    const dates = incoming.map((t) => t.date).filter(Boolean).sort();
+    const existing = await sql`
+      SELECT date, amount, type, description FROM transactions
+      WHERE user_id = ${req.userId} AND date >= ${dates[0]} AND date <= ${dates[dates.length - 1]}
+    `;
+    const seen = new Set(existing.map(fingerprint));
+
+    const rows = [];
+    let skipped = 0;
+    const errors = [];
+
+    incoming.forEach((t, i) => {
+      const amount = Number(t.amount);
+      if (!t.date || !/^\d{4}-\d{2}-\d{2}$/.test(t.date) || !isFinite(amount)) {
+        errors.push(`Row ${i + 1}: missing or malformed date/amount`);
+        return;
+      }
+      if (!validCategories.has(t.categoryId)) {
+        errors.push(`Row ${i + 1}: unknown category`);
+        return;
+      }
+      const type = t.type === 'income' ? 'income' : 'expense';
+      const candidate = { date: t.date, amount: Math.abs(amount), type, description: (t.description || '').slice(0, 300) };
+      const fp = fingerprint(candidate);
+      if (seen.has(fp)) {
+        skipped++;
+        return;
+      }
+      seen.add(fp);
+      rows.push({ ...candidate, categoryId: t.categoryId });
+    });
+
+    for (const r of rows) {
+      await sql`
+        INSERT INTO transactions (id, user_id, date, amount, category_id, type, description)
+        VALUES (${crypto.randomUUID()}, ${req.userId}, ${r.date}, ${r.amount}, ${r.categoryId}, ${r.type}, ${r.description})
+      `;
+    }
+
+    res.status(201).json({ imported: rows.length, skipped, errors });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Wallet } from 'lucide-react';
 import { api } from '../api.js';
 
@@ -6,9 +6,15 @@ export default function AuthScreen({ onAuthenticated }) {
   const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'forgot'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
+  const [config, setConfig] = useState({ signupEnabled: true, inviteRequired: false });
+
+  useEffect(() => {
+    api.authConfig().then(setConfig).catch(() => {});
+  }, []);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -19,7 +25,8 @@ export default function AuthScreen({ onAuthenticated }) {
         await api.forgotPassword(email);
         setForgotSent(true);
       } else {
-        const user = mode === 'login' ? await api.login(email, password) : await api.signup(email, password);
+        const user =
+          mode === 'login' ? await api.login(email, password) : await api.signup(email, password, inviteCode);
         onAuthenticated(user);
       }
     } catch (err) {
@@ -66,6 +73,18 @@ export default function AuthScreen({ onAuthenticated }) {
                 required
               />
             </label>
+            {mode === 'signup' && config.inviteRequired && (
+              <label>
+                Invite code
+                <input
+                  type="text"
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value)}
+                  placeholder="Required to create an account"
+                  required
+                />
+              </label>
+            )}
             {mode !== 'forgot' && (
               <label>
                 Password
@@ -98,13 +117,22 @@ export default function AuthScreen({ onAuthenticated }) {
             <button type="button" className="link-btn" onClick={() => switchMode('login')}>
               Back to log in
             </button>
-          ) : (
+          ) : mode === 'signup' ? (
             <>
-              {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
-              <button type="button" className="link-btn" onClick={() => switchMode(mode === 'login' ? 'signup' : 'login')}>
-                {mode === 'login' ? 'Sign up' : 'Log in'}
+              Already have an account?{' '}
+              <button type="button" className="link-btn" onClick={() => switchMode('login')}>
+                Log in
               </button>
             </>
+          ) : (
+            config.signupEnabled && (
+              <>
+                Don't have an account?{' '}
+                <button type="button" className="link-btn" onClick={() => switchMode('signup')}>
+                  Sign up
+                </button>
+              </>
+            )
           )}
         </p>
       </div>
