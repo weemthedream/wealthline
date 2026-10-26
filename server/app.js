@@ -17,6 +17,10 @@ const networthRouter = require('./routes/networth');
 
 const app = express();
 
+// Behind Vercel's proxy, so the client IP comes from X-Forwarded-For. Rate
+// limiting is per-IP and would otherwise bucket everyone together.
+app.set('trust proxy', 1);
+
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN || 'http://localhost:5173',

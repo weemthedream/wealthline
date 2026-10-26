@@ -26,6 +26,29 @@ async function sendEmail({ to, subject, html }) {
   return { delivered: true };
 }
 
+function emailConfigured() {
+  return Boolean(RESEND_API_KEY);
+}
+
+function sendVerificationEmail(to, verifyUrl) {
+  return sendEmail({
+    to,
+    subject: 'Confirm your Wealthline email',
+    html: `
+      <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+        <h2 style="color: #4f46e5;">Confirm your email</h2>
+        <p>Welcome to Wealthline. Confirm this address to activate your account.</p>
+        <p>
+          <a href="${verifyUrl}" style="display: inline-block; background: #4f46e5; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+            Confirm email
+          </a>
+        </p>
+        <p style="color: #666; font-size: 13px;">This link expires in 24 hours. If you didn't sign up, you can ignore this email.</p>
+      </div>
+    `
+  });
+}
+
 function sendPasswordResetEmail(to, resetUrl) {
   return sendEmail({
     to,
@@ -45,4 +68,4 @@ function sendPasswordResetEmail(to, resetUrl) {
   });
 }
 
-module.exports = { sendEmail, sendPasswordResetEmail };
+module.exports = { sendEmail, sendPasswordResetEmail, sendVerificationEmail, emailConfigured };

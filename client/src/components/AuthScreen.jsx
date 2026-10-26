@@ -10,7 +10,9 @@ export default function AuthScreen({ onAuthenticated }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
-  const [config, setConfig] = useState({ signupEnabled: true, inviteRequired: false });
+  const [pendingVerification, setPendingVerification] = useState(false);
+  const [resent, setResent] = useState(false);
+  const [config, setConfig] = useState({ signupEnabled: true, inviteRequired: false, verificationRequired: false });
 
   useEffect(() => {
     api.authConfig().then(setConfig).catch(() => {});
@@ -27,10 +29,15 @@ export default function AuthScreen({ onAuthenticated }) {
       } else {
         const user =
           mode === 'login' ? await api.login(email, password) : await api.signup(email, password, inviteCode);
+        if (user?.pendingVerification) {
+          setPendingVerification(true);
+          return;
+        }
         onAuthenticated(user);
       }
     } catch (err) {
-      setError(err.message);
+      if (err.data?.pendingVerification) setPendingVerification(true);
+      else setError(err.message);
     } finally {
       setBusy(false);
     }
@@ -40,6 +47,13 @@ export default function AuthScreen({ onAuthenticated }) {
     setMode(next);
     setError('');
     setForgotSent(false);
+    setPendingVerification(false);
+    setResent(false);
+  };
+
+  const resendVerification = async () => {
+    await api.resendVerification(email).catch(() => {});
+    setResent(true);
   };
 
   const titles = { login: 'Log in', signup: 'Create your account', forgot: 'Reset your password' };
@@ -57,7 +71,20 @@ export default function AuthScreen({ onAuthenticated }) {
 
         {error && <div className="error-box">{error}</div>}
 
-        {mode === 'forgot' && forgotSent ? (
+        {pendingVerification ? (
+          <div style={{ textAlign: 'center' }}>
+            <p className="empty-hint">
+              Check <strong>{email}</strong> for a confirmation link to activate your account.
+            </p>
+            {resent ? (
+              <p className="empty-hint">A new link has been sent.</p>
+            ) : (
+              <button type="button" className="link-btn" onClick={resendVerification}>
+                Resend the link
+              </button>
+            )}
+          </div>
+        ) : mode === 'forgot' && forgotSent ? (
           <p className="empty-hint" style={{ textAlign: 'center' }}>
             If an account exists for that email, a reset link is on its way. Check your inbox.
           </p>
@@ -135,6 +162,13 @@ export default function AuthScreen({ onAuthenticated }) {
             )
           )}
         </p>
+
+        {mode === 'signup' && !pendingVerification && (
+          <p className="auth-disclaimer">
+            Wealthline is an independently built personal project, not a bank or a registered financial service. Your
+            data is private to your account, but please don't store anything you couldn't afford to lose.
+          </p>
+        )}
       </div>
     </div>
   );

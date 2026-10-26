@@ -22,6 +22,7 @@ import NetWorth from './components/NetWorth.jsx';
 import CategoriesDrawer from './components/CategoriesDrawer.jsx';
 import AuthScreen from './components/AuthScreen.jsx';
 import ResetPassword from './components/ResetPassword.jsx';
+import VerifyEmail from './components/VerifyEmail.jsx';
 import { api } from './api.js';
 
 function currentMonth() {
@@ -188,15 +189,19 @@ function MainApp({ user, onLogout, theme, setTheme }) {
   );
 }
 
-function getResetToken() {
-  if (window.location.pathname !== '/reset-password') return null;
+function tokenForPath(path) {
+  if (window.location.pathname !== path) return null;
   return new URLSearchParams(window.location.search).get('token');
 }
+
+const getResetToken = () => tokenForPath('/reset-password');
+const getVerifyToken = () => tokenForPath('/verify-email');
 
 export default function App() {
   const [user, setUser] = useState(undefined); // undefined = checking, null = logged out, object = logged in
   const [theme, setTheme] = useState(() => localStorage.getItem('wealthline-theme') || 'dark');
   const [resetToken, setResetToken] = useState(getResetToken);
+  const [verifyToken, setVerifyToken] = useState(getVerifyToken);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -205,17 +210,35 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
-    if (resetToken) return; // don't bother checking auth while resetting a password
+    if (resetToken || verifyToken) return; // mid-flow; don't race the auth check
     api
       .me()
       .then(setUser)
       .catch(() => setUser(null));
-  }, [resetToken]);
+  }, [resetToken, verifyToken]);
 
   const logout = async () => {
     await api.logout().catch(() => {});
     setUser(null);
   };
+
+  if (verifyToken) {
+    return (
+      <VerifyEmail
+        token={verifyToken}
+        onVerified={(loggedInUser) => {
+          window.history.replaceState({}, '', '/');
+          setVerifyToken(null);
+          setUser(loggedInUser);
+        }}
+        onBackToLogin={() => {
+          window.history.replaceState({}, '', '/');
+          setVerifyToken(null);
+          setUser(null);
+        }}
+      />
+    );
+  }
 
   if (resetToken) {
     return (

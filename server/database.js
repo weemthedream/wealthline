@@ -42,6 +42,20 @@ async function createSchema() {
   `;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_hash TEXT`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires TIMESTAMPTZ`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT false`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_token_hash TEXT`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_token_expires TIMESTAMPTZ`;
+  // Accounts that existed before verification was introduced stay usable.
+  await sql`UPDATE users SET email_verified = true WHERE email_verified = false AND verify_token_hash IS NULL`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS auth_attempts (
+      id TEXT PRIMARY KEY,
+      bucket TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_auth_attempts_bucket ON auth_attempts(bucket, created_at)`;
   await sql`
     CREATE TABLE IF NOT EXISTS categories (
       id TEXT PRIMARY KEY,
