@@ -10,7 +10,8 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
-  Wallet
+  Wallet,
+  MailWarning
 } from 'lucide-react';
 import Dashboard from './components/Dashboard.jsx';
 import Transactions from './components/Transactions.jsx';
@@ -54,6 +55,34 @@ const PRIMARY_TABS = [
   { id: 'networth', label: 'Net Worth', icon: Landmark },
   { id: 'retirement', label: 'Retirement', icon: Target }
 ];
+
+function ReverifyBanner({ email }) {
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const send = async () => {
+    setBusy(true);
+    await api.resendVerification(email).catch(() => {});
+    setSent(true);
+    setBusy(false);
+  };
+
+  return (
+    <div className="reverify-banner">
+      <MailWarning size={15} />
+      <span>
+        {sent
+          ? 'Confirmation link sent — check your inbox.'
+          : "It's been a year since you confirmed this email. Please confirm it still reaches you."}
+      </span>
+      {!sent && (
+        <button className="link-btn" onClick={send} disabled={busy}>
+          {busy ? 'Sending…' : 'Send link'}
+        </button>
+      )}
+    </div>
+  );
+}
 
 function MainApp({ user, onLogout, theme, setTheme }) {
   const [primaryTab, setPrimaryTab] = useState('month');
@@ -154,6 +183,8 @@ function MainApp({ user, onLogout, theme, setTheme }) {
       </header>
 
       <main className="main-content">
+        {user.verificationStale && <ReverifyBanner email={user.email} />}
+
         {primaryTab === 'month' && monthSubTab === 'overview' && <Dashboard month={month} refreshKey={refreshKey} />}
         {primaryTab === 'month' && monthSubTab === 'transactions' && (
           <Transactions month={month} categories={categories} onChange={bump} />

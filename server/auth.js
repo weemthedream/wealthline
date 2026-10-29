@@ -45,7 +45,7 @@ function requireAuth(req, res, next) {
   const decoded = raw && decodeToken(raw);
   if (!decoded) return res.status(401).json({ error: 'Not authenticated' });
 
-  sql`SELECT id, email, token_version, email_verified FROM users WHERE id = ${decoded.userId}`
+  sql`SELECT id, email, token_version, email_verified, email_verified_at FROM users WHERE id = ${decoded.userId}`
     .then(([user]) => {
       if (!user || user.token_version !== decoded.version) {
         res.clearCookie(COOKIE_NAME, cookieOptions);

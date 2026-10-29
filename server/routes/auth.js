@@ -20,6 +20,17 @@ const SIGNUP_INVITE_CODE = process.env.SIGNUP_INVITE_CODE || '';
 // configured — otherwise nobody could ever verify, and signup would be a trap.
 const VERIFY_EMAILS = emailConfigured();
 
+// Addresses go stale — people abandon inboxes, and password reset depends on
+// the address still working. Confirmation is asked for again after this long.
+const REVERIFY_DAYS = Number(process.env.REVERIFY_DAYS || 365);
+
+function verificationStale(user) {
+  if (!VERIFY_EMAILS || !user?.email_verified) return false;
+  if (!user.email_verified_at) return true;
+  const ageDays = (Date.now() - new Date(user.email_verified_at).getTime()) / 86_400_000;
+  return ageDays >= REVERIFY_DAYS;
+}
+
 function timingSafeEqual(a, b) {
   const bufA = Buffer.from(String(a));
   const bufB = Buffer.from(String(b));
@@ -31,13 +42,22 @@ function appUrl() {
   return process.env.APP_URL || 'http://localhost:5173';
 }
 
+// Delivery failures must not fail the surrounding request: the account (or
+// reset token) is already written, and a provider outage shouldn't leave the
+// user with a 500 and no way forward. They can retry from the "resend" button.
 async function issueVerification(userId, email) {
   const rawToken = crypto.randomBytes(32).toString('hex');
   const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   await sql`
     UPDATE users SET verify_token_hash = ${hashToken(rawToken)}, verify_token_expires = ${expires} WHERE id = ${userId}
   `;
-  await sendVerificationEmail(email, `${appUrl()}/verify-email?token=${rawToken}`);
+  try {
+    await sendVerificationEmail(email, `${appUrl()}/verify-email?token=${rawToken}`);
+    return true;
+  } catch (err) {
+    console.error('Verification email failed to send:', err.message);
+    return false;
+  }
 }
 
 router.get('/config', (req, res) => {
@@ -81,8 +101,8 @@ router.post(
       await seedDefaultCategories(id);
 
       if (VERIFY_EMAILS) {
-        await issueVerification(id, normalizedEmail);
-        return res.status(201).json({ pendingVerification: true, email: normalizedEmail });
+        const delivered = await issueVerification(id, normalizedEmail);
+        return res.status(201).json({ pendingVerification: true, email: normalizedEmail, delivered });
       }
 
       const token = createToken(id, 0);
@@ -132,7 +152,9 @@ router.post('/verify-email', async (req, res, next) => {
     if (!user) return res.status(400).json({ error: 'This verification link is invalid or has expired.' });
 
     await sql`
-      UPDATE users SET email_verified = true, verify_token_hash = NULL, verify_token_expires = NULL WHERE id = ${user.id}
+      UPDATE users
+      SET email_verified = true, email_verified_at = now(), verify_token_hash = NULL, verify_token_expires = NULL
+      WHERE id = ${user.id}
     `;
     const authToken = createToken(user.id, user.token_version);
     res.cookie(COOKIE_NAME, authToken, cookieOptions);
@@ -151,8 +173,10 @@ router.post(
       if (!email) return res.status(400).json({ error: 'Email is required' });
       await res.locals.recordAuthFailure?.();
       const normalizedEmail = String(email).trim().toLowerCase();
-      const [user] = await sql`SELECT id, email_verified FROM users WHERE email = ${normalizedEmail}`;
-      if (user && !user.email_verified && VERIFY_EMAILS) {
+      const [user] = await sql`
+        SELECT id, email_verified, email_verified_at FROM users WHERE email = ${normalizedEmail}
+      `;
+      if (user && VERIFY_EMAILS && (!user.email_verified || verificationStale(user))) {
         await issueVerification(user.id, normalizedEmail);
       }
       // Same response either way, so this can't be used to discover accounts.
@@ -189,7 +213,13 @@ router.post('/forgot-password', rateLimit([
       `;
       const appUrl = process.env.APP_URL || 'http://localhost:5173';
       const resetUrl = `${appUrl}/reset-password?token=${rawToken}`;
-      await sendPasswordResetEmail(normalizedEmail, resetUrl);
+      try {
+        await sendPasswordResetEmail(normalizedEmail, resetUrl);
+      } catch (err) {
+        // Same reasoning as verification: never turn a provider outage into a
+        // 500 that also leaks whether the account exists.
+        console.error('Password reset email failed to send:', err.message);
+      }
     }
 
     res.json({ message: 'If an account exists for that email, a reset link has been sent.' });
@@ -282,14 +312,13 @@ router.delete('/account', requireAuth, async (req, res, next) => {
   }
 });
 
-router.get('/me', requireAuth, async (req, res, next) => {
-  try {
-    const [user] = await sql`SELECT id, email FROM users WHERE id = ${req.userId}`;
-    if (!user) return res.status(401).json({ error: 'Not authenticated' });
-    res.json(user);
-  } catch (err) {
-    next(err);
-  }
+router.get('/me', requireAuth, (req, res) => {
+  // requireAuth already loaded the row; no need to query again.
+  res.json({
+    id: req.user.id,
+    email: req.user.email,
+    verificationStale: verificationStale(req.user)
+  });
 });
 
 module.exports = router;
