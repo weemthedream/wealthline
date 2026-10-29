@@ -15,6 +15,7 @@ const summaryRouter = require('./routes/summary');
 const goalsRouter = require('./routes/goals');
 const accountsRouter = require('./routes/accounts');
 const networthRouter = require('./routes/networth');
+const excelRouter = require('./routes/excel');
 
 const app = express();
 
@@ -86,6 +87,7 @@ app.use('/api/summary', summaryRouter);
 app.use('/api/goals', goalsRouter);
 app.use('/api/accounts', accountsRouter);
 app.use('/api/networth', networthRouter);
+app.use('/api/export', excelRouter);
 
 // In production (self-hosted / Docker), serve the built frontend from the same
 // server so the app works as a single deployable unit. On Vercel the frontend

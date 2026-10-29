@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Download, Search, Plus, Upload } from 'lucide-react';
+import { Download, Search, Plus, Upload, FileSpreadsheet } from 'lucide-react';
 import { api } from '../api.js';
 import { CategoryIcon } from '../categoryIcons.jsx';
 import ImportCsv from './ImportCsv.jsx';
@@ -94,6 +94,22 @@ export default function Transactions({ month, categories, onChange }) {
     });
   }, [transactions, search, filterCategoryId, categories]);
 
+  const downloadExcel = async () => {
+    try {
+      const res = await fetch('/api/export/xlsx', { credentials: 'include' });
+      if (!res.ok) throw new Error(`Export failed (${res.status})`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `wealthline-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   const exportCsv = () => {
     const rows = [
       ['Date', 'Type', 'Category', 'Description', 'Amount'],
@@ -180,7 +196,11 @@ export default function Transactions({ month, categories, onChange }) {
             </button>
             <button className="secondary-btn" onClick={exportCsv} disabled={visibleTransactions.length === 0}>
               <Download size={14} />
-              Export
+              CSV
+            </button>
+            <button className="secondary-btn" onClick={downloadExcel} title="Full multi-sheet workbook of all your data">
+              <FileSpreadsheet size={14} />
+              Excel
             </button>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Download, LogOut, Trash2 } from 'lucide-react';
+import { Download, FileSpreadsheet, LogOut, Trash2 } from 'lucide-react';
 import { api } from '../api.js';
 
 export default function AccountSettings({ user, onSignedOut }) {
@@ -21,6 +21,27 @@ export default function AccountSettings({ user, onSignedOut }) {
       URL.revokeObjectURL(url);
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  // Binary download, so this bypasses the JSON api helper.
+  const downloadExcel = async () => {
+    setError('');
+    setBusy(true);
+    try {
+      const res = await fetch('/api/export/xlsx', { credentials: 'include' });
+      if (!res.ok) throw new Error(`Export failed (${res.status})`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `wealthline-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -57,9 +78,13 @@ export default function AccountSettings({ user, onSignedOut }) {
       {error && <div className="error-box">{error}</div>}
 
       <div className="account-actions">
+        <button className="secondary-btn" onClick={downloadExcel} disabled={busy}>
+          <FileSpreadsheet size={14} />
+          Download Excel workbook
+        </button>
         <button className="secondary-btn" onClick={exportAll}>
           <Download size={14} />
-          Export all my data
+          Export raw data (JSON)
         </button>
         <button className="secondary-btn" onClick={signOutEverywhere} disabled={busy}>
           <LogOut size={14} />
