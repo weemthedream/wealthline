@@ -183,7 +183,13 @@ function MainApp({ user, onLogout, theme, setTheme }) {
       </nav>
 
       {showCategories && (
-        <CategoriesDrawer categories={categories} onClose={() => setShowCategories(false)} onChange={bump} />
+        <CategoriesDrawer
+          categories={categories}
+          onClose={() => setShowCategories(false)}
+          onChange={bump}
+          user={user}
+          onSignedOut={onLogout}
+        />
       )}
     </div>
   );

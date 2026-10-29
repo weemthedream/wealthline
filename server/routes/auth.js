@@ -85,7 +85,7 @@ router.post(
         return res.status(201).json({ pendingVerification: true, email: normalizedEmail });
       }
 
-      const token = createToken(id);
+      const token = createToken(id, 0);
       res.cookie(COOKIE_NAME, token, cookieOptions);
       res.status(201).json({ id, email: normalizedEmail });
     } catch (err) {
@@ -113,7 +113,7 @@ router.post(
       if (VERIFY_EMAILS && !user.email_verified) {
         return res.status(403).json({ error: 'Please verify your email first.', pendingVerification: true });
       }
-      const token = createToken(user.id);
+      const token = createToken(user.id, user.token_version);
       res.cookie(COOKIE_NAME, token, cookieOptions);
       res.json({ id: user.id, email: user.email });
     } catch (err) {
@@ -134,7 +134,7 @@ router.post('/verify-email', async (req, res, next) => {
     await sql`
       UPDATE users SET email_verified = true, verify_token_hash = NULL, verify_token_expires = NULL WHERE id = ${user.id}
     `;
-    const authToken = createToken(user.id);
+    const authToken = createToken(user.id, user.token_version);
     res.cookie(COOKIE_NAME, authToken, cookieOptions);
     res.json({ id: user.id, email: user.email });
   } catch (err) {
@@ -210,13 +210,73 @@ router.post('/reset-password', async (req, res, next) => {
     if (!user) return res.status(400).json({ error: 'This reset link is invalid or has expired' });
 
     await sql`
-      UPDATE users SET password_hash = ${hashPassword(password)}, reset_token_hash = NULL, reset_token_expires = NULL
+      UPDATE users
+      SET password_hash = ${hashPassword(password)},
+          reset_token_hash = NULL,
+          reset_token_expires = NULL,
+          token_version = token_version + 1
       WHERE id = ${user.id}
     `;
 
-    const authToken = createToken(user.id);
+    // Every session minted before this point is now invalid, so whoever
+    // triggered the reset is the only one still signed in.
+    const [updated] = await sql`SELECT token_version FROM users WHERE id = ${user.id}`;
+    const authToken = createToken(user.id, updated.token_version);
     res.cookie(COOKIE_NAME, authToken, cookieOptions);
     res.json({ id: user.id, email: user.email });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const USER_TABLES = [
+  'transactions',
+  'budgets',
+  'bills',
+  'goals',
+  'account_snapshots',
+  'accounts',
+  'categories'
+];
+
+// Everything the account holds, in one file. Pairs with deletion: people should
+// be able to take their data with them before removing it.
+router.get('/export', requireAuth, async (req, res, next) => {
+  try {
+    const data = { exportedAt: new Date().toISOString(), email: req.user.email };
+    for (const table of USER_TABLES) {
+      data[table] = await sql(`SELECT * FROM ${table} WHERE user_id = $1`, [req.userId]);
+    }
+    res.setHeader('Content-Disposition', `attachment; filename="wealthline-export-${Date.now()}.json"`);
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/sign-out-everywhere', requireAuth, async (req, res, next) => {
+  try {
+    await sql`UPDATE users SET token_version = token_version + 1 WHERE id = ${req.userId}`;
+    res.clearCookie(COOKIE_NAME, cookieOptions);
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/account', requireAuth, async (req, res, next) => {
+  try {
+    const { password } = req.body || {};
+    const [user] = await sql`SELECT password_hash FROM users WHERE id = ${req.userId}`;
+    if (!user || !password || !verifyPassword(password, user.password_hash)) {
+      return res.status(403).json({ error: 'Enter your current password to delete your account.' });
+    }
+    for (const table of USER_TABLES) {
+      await sql(`DELETE FROM ${table} WHERE user_id = $1`, [req.userId]);
+    }
+    await sql`DELETE FROM users WHERE id = ${req.userId}`;
+    res.clearCookie(COOKIE_NAME, cookieOptions);
+    res.status(204).end();
   } catch (err) {
     next(err);
   }

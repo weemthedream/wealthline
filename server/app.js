@@ -3,6 +3,7 @@ const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
+const helmet = require('helmet');
 
 const { ready } = require('./database');
 const authRouter = require('./routes/auth');
@@ -20,6 +21,29 @@ const app = express();
 // Behind Vercel's proxy, so the client IP comes from X-Forwarded-For. Rate
 // limiting is per-IP and would otherwise bucket everyone together.
 app.set('trust proxy', 1);
+
+// On Vercel the static frontend is served by the CDN, so the page's own headers
+// come from vercel.json; this covers API responses and self-hosted/Docker runs.
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+        imgSrc: ["'self'", 'data:'],
+        connectSrc: ["'self'"],
+        frameAncestors: ["'none'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"]
+      }
+    },
+    crossOriginEmbedderPolicy: false,
+    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true }
+  })
+);
 
 app.use(
   cors({

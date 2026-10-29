@@ -16,13 +16,17 @@ function verifyPassword(password, hash) {
   return bcrypt.compareSync(password, hash);
 }
 
-function createToken(userId) {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '30d' });
+// Tokens carry the account's token_version. Bumping that column server-side
+// invalidates every token already issued — which is what makes a password
+// reset actually evict an attacker instead of leaving them signed in.
+function createToken(userId, tokenVersion = 0) {
+  return jwt.sign({ userId, v: tokenVersion }, JWT_SECRET, { expiresIn: '30d' });
 }
 
-function verifyToken(token) {
+function decodeToken(token) {
   try {
-    return jwt.verify(token, JWT_SECRET).userId;
+    const payload = jwt.verify(token, JWT_SECRET);
+    return { userId: payload.userId, version: payload.v ?? 0 };
   } catch {
     return null;
   }
@@ -36,11 +40,30 @@ const cookieOptions = {
 };
 
 function requireAuth(req, res, next) {
-  const token = req.cookies[COOKIE_NAME];
-  const userId = token && verifyToken(token);
-  if (!userId) return res.status(401).json({ error: 'Not authenticated' });
-  req.userId = userId;
-  next();
+  const { sql } = require('./database');
+  const raw = req.cookies[COOKIE_NAME];
+  const decoded = raw && decodeToken(raw);
+  if (!decoded) return res.status(401).json({ error: 'Not authenticated' });
+
+  sql`SELECT id, email, token_version, email_verified FROM users WHERE id = ${decoded.userId}`
+    .then(([user]) => {
+      if (!user || user.token_version !== decoded.version) {
+        res.clearCookie(COOKIE_NAME, cookieOptions);
+        return res.status(401).json({ error: 'Session expired. Please log in again.' });
+      }
+      req.userId = user.id;
+      req.user = user;
+      next();
+    })
+    .catch(next);
 }
 
-module.exports = { hashPassword, verifyPassword, createToken, verifyToken, requireAuth, COOKIE_NAME, cookieOptions };
+module.exports = {
+  hashPassword,
+  verifyPassword,
+  createToken,
+  decodeToken,
+  requireAuth,
+  COOKIE_NAME,
+  cookieOptions
+};

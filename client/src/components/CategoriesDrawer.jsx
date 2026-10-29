@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { api } from '../api.js';
 import { X, Plus } from 'lucide-react';
 import { CategoryIcon } from '../categoryIcons.jsx';
+import AccountSettings from './AccountSettings.jsx';
 
 const EMPTY_NEW = { name: '', type: 'expense', color: '#6366f1' };
 
-export default function CategoriesDrawer({ categories, onClose, onChange }) {
+export default function CategoriesDrawer({ categories, onClose, onChange, user, onSignedOut }) {
   const [renameDrafts, setRenameDrafts] = useState({});
   const [newCategory, setNewCategory] = useState(EMPTY_NEW);
   const [pendingDelete, setPendingDelete] = useState(null); // { category, counts, reassignTo }
@@ -175,6 +176,8 @@ export default function CategoriesDrawer({ categories, onClose, onChange }) {
             Add
           </button>
         </form>
+
+        {user && <AccountSettings user={user} onSignedOut={onSignedOut} />}
       </div>
     </div>
   );

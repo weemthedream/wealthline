@@ -935,6 +935,26 @@ input[type='color'] {
   margin: 22px 0 6px;
 }
 
+.account-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.account-actions .secondary-btn {
+  justify-content: flex-start;
+}
+
+.secondary-btn.danger-outline {
+  color: var(--expense);
+  border-color: color-mix(in srgb, var(--expense) 40%, transparent);
+}
+
+.secondary-btn.danger-outline:hover:not(:disabled) {
+  background: var(--expense-soft);
+}
+
 .confirm-box {
   background: var(--warn-soft);
   border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
