@@ -1,0 +1,65 @@
+name: Database backup
+
+on:
+  schedule:
+    # 08:10 UTC daily. Offset from the hour because scheduled runs queue up
+    # on the hour and can be delayed.
+    - cron: '10 8 * * *'
+  workflow_dispatch: # also runnable on demand from the Actions tab
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    # pg_dump must be at least the server's major version (Neon runs PG 18).
+    container: postgres:18-alpine
+
+    steps:
+      - name: Dump database
+        env:
+          # Direct (unpooled) endpoint — pg_dump does not work reliably through
+          # the PgBouncer pooler.
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "::error::BACKUP_DATABASE_URL secret is not set"
+            exit 1
+          fi
+          STAMP="$(date -u +%Y-%m-%d)"
+          mkdir -p out
+          pg_dump "$DATABASE_URL" --no-owner --no-privileges --format=plain \
+            | gzip -9 > "out/wealthline-${STAMP}.sql.gz"
+          ls -lh out/
+
+      - name: Verify the dump is real
+        run: |
+          set -euo pipefail
+          FILE=$(ls out/*.sql.gz)
+          SIZE=$(stat -c%s "$FILE")
+          echo "size: ${SIZE} bytes"
+          # A truncated or empty dump that still "succeeds" is worse than a
+          # failed job, because it looks like a backup.
+          if [ "$SIZE" -lt 1000 ]; then
+            echo "::error::Dump is suspiciously small (${SIZE} bytes)"
+            exit 1
+          fi
+          for TABLE in users categories transactions budgets bills goals accounts; do
+            if ! gunzip -c "$FILE" | grep -q "CREATE TABLE public.${TABLE}"; then
+              echo "::error::Dump is missing table: ${TABLE}"
+              exit 1
+            fi
+          done
+          echo "All expected tables present."
+          echo "ROWS=$(gunzip -c "$FILE" | grep -c '^INSERT\|^COPY' || true)"
+
+      - name: Upload backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: wealthline-backup-${{ github.run_id }}
+          path: out/*.sql.gz
+          retention-days: 90
+          if-no-files-found: error
