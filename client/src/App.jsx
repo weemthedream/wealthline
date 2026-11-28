@@ -13,7 +13,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Wallet,
-  MailWarning
+  MailWarning,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import Dashboard from './components/Dashboard.jsx';
 import Transactions from './components/Transactions.jsx';
@@ -27,6 +29,7 @@ import AuthScreen from './components/AuthScreen.jsx';
 import ResetPassword from './components/ResetPassword.jsx';
 import VerifyEmail from './components/VerifyEmail.jsx';
 import { api } from './api.js';
+import { setAmountsHidden } from './chartTheme.jsx';
 
 function currentMonth() {
   const now = new Date();
@@ -133,6 +136,26 @@ function MainApp({ user, onLogout, theme, setTheme }) {
   const [categories, setCategories] = useState([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [showCategories, setShowCategories] = useState(false);
+  const [amountsHidden, setHidden] = useState(() => {
+    try {
+      return localStorage.getItem('wealthline-hide-amounts') === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  // Set before children render so every money() call this render sees it.
+  setAmountsHidden(amountsHidden);
+
+  const toggleAmounts = () => {
+    const next = !amountsHidden;
+    setHidden(next);
+    try {
+      localStorage.setItem('wealthline-hide-amounts', next ? '1' : '0');
+    } catch {
+      /* storage unavailable: setting lasts for this visit only */
+    }
+  };
 
   useEffect(() => {
     api
@@ -168,6 +191,17 @@ function MainApp({ user, onLogout, theme, setTheme }) {
       title="Toggle light / dark theme"
     >
       {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+    </button>
+  );
+  const privacyButton = (
+    <button
+      className={`icon-btn ${amountsHidden ? 'is-on' : ''}`}
+      onClick={toggleAmounts}
+      aria-pressed={amountsHidden}
+      aria-label={amountsHidden ? 'Show amounts' : 'Hide amounts'}
+      title={amountsHidden ? 'Show amounts' : 'Hide amounts (privacy mode)'}
+    >
+      {amountsHidden ? <EyeOff size={16} /> : <Eye size={16} />}
     </button>
   );
   const categoriesButton = (
@@ -216,6 +250,7 @@ function MainApp({ user, onLogout, theme, setTheme }) {
             {user.email}
           </span>
           <div className="sidebar-actions">
+            {privacyButton}
             {themeButton}
             {categoriesButton}
             {logoutButton}
@@ -227,6 +262,7 @@ function MainApp({ user, onLogout, theme, setTheme }) {
         <header className="mobile-topbar">
           <Brand />
           <div className="topbar-actions">
+            {privacyButton}
             {themeButton}
             {categoriesButton}
             {logoutButton}

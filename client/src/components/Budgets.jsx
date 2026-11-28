@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import { money } from '../chartTheme.jsx';
 import { CategoryIcon } from '../categoryIcons.jsx';
 
 function currency(n) {
-  return n.toLocaleString(undefined, { style: 'currency', currency: 'USD' });
+  return money(n, { cents: true });
 }
 
 export default function Budgets({ month, categories, onChange }) {

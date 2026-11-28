@@ -1707,7 +1707,7 @@ input[type='color'] {
 
 .alert-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 11px;
   padding: 11px 0;
   font-size: 0.87rem;
@@ -1719,25 +1719,187 @@ input[type='color'] {
   padding-bottom: 0;
 }
 
-.alert-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+.alert-icon {
+  display: inline-flex;
   flex-shrink: 0;
-  transform: translateY(-1px);
-  background: var(--text-faint);
+  color: var(--text-faint);
 }
 
-.alert-row.danger .alert-dot {
-  background: var(--expense);
+.alert-row.danger .alert-icon {
+  color: var(--expense);
 }
 
-.alert-row.warning .alert-dot {
-  background: var(--warn);
+.alert-row.warning .alert-icon {
+  color: var(--warn);
 }
 
-.alert-row.positive .alert-dot {
-  background: var(--income);
+.alert-row.positive .alert-icon {
+  color: var(--income);
+}
+
+.alert-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.alert-action {
+  flex-shrink: 0;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Safe to spend: the one number the page leads with */
+.safe-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.safe-value {
+  font-size: 2.6rem;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+
+.safe-note {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  max-width: 46ch;
+}
+
+.safe-details {
+  margin-top: auto;
+  padding-top: 16px;
+  font-size: 0.84rem;
+}
+
+.safe-details summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 500;
+  width: fit-content;
+}
+
+.safe-details dl {
+  margin: 10px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 360px;
+}
+
+.safe-details dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.safe-details dt {
+  color: var(--text-muted);
+}
+
+.safe-details dd {
+  margin: 0;
+  font-weight: 500;
+}
+
+.safe-details .safe-total {
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+  font-weight: 600;
+}
+
+.safe-details .safe-total dt {
+  color: var(--text);
+}
+
+/* Bills still to pay */
+.bill-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.bill-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.bill-row:last-child {
+  border-bottom: none;
+}
+
+.bill-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bill-name {
+  font-weight: 600;
+  font-size: 0.88rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bill-due {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.bill-due.soon {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.bill-due.late {
+  color: var(--expense);
+  font-weight: 600;
+}
+
+.bill-amount {
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.btn-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-mini:hover {
+  background: var(--surface-hover);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .mini-legend {
@@ -1902,4 +2064,9 @@ input[type='color'] {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+.icon-btn.is-on {
+  background: var(--accent-soft);
+  color: var(--accent);
 }

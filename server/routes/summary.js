@@ -29,8 +29,10 @@ function daysInMonth(month) {
   return new Date(y, m, 0).getDate();
 }
 
-// Auto-generated spending callouts, in the spirit of Copilot Money's insight cards:
-// biggest category swings vs. last month, and early over-budget-pace warnings.
+// Auto-generated spending callouts: biggest category swings vs. last month,
+// early over-budget-pace warnings, and wins worth noticing.
+// Wording is deliberately neutral (state the fact, not a judgment) and each
+// insight carries a `kind` so the UI can offer the matching next step.
 function buildInsights({ month, byCategory, prevByCategory, budgetProgress, income, prevIncome, expenses, prevExpenses }) {
   const insights = [];
   const prevTotals = Object.fromEntries(prevByCategory.map((c) => [c.categoryId, c.total]));
@@ -50,10 +52,12 @@ function buildInsights({ month, byCategory, prevByCategory, budgetProgress, inco
   for (const s of swings) {
     insights.push({
       type: s.delta > 0 ? 'warning' : 'positive',
+      kind: 'swing',
+      categoryId: s.categoryId,
       text:
         s.delta > 0
-          ? `${s.name} spending is up ${Math.round(s.pct)}% vs last month ($${Math.round(s.delta)} more).`
-          : `${s.name} spending is down ${Math.round(Math.abs(s.pct))}% vs last month ($${Math.round(Math.abs(s.delta))} saved).`
+          ? `${s.name} is up ${Math.round(s.pct)}% from last month ($${Math.round(s.delta)} more).`
+          : `${s.name} is down ${Math.round(Math.abs(s.pct))}% from last month ($${Math.round(Math.abs(s.delta))} less).`
     });
   }
 
@@ -63,17 +67,41 @@ function buildInsights({ month, byCategory, prevByCategory, budgetProgress, inco
     const dayOfMonth = now.getDate();
     const totalDays = daysInMonth(month);
     const expectedPace = dayOfMonth / totalDays;
+    const daysLeft = totalDays - dayOfMonth;
+    const dayWord = daysLeft === 1 ? 'day' : 'days';
+    let onTrack = 0;
+    let tracked = 0;
     for (const b of budgetProgress) {
       if (b.limit <= 0) continue;
+      tracked++;
       const pctUsed = b.spent / b.limit;
-      if (pctUsed >= 1) {
-        insights.push({ type: 'danger', text: `${b.name} is already over budget with ${totalDays - dayOfMonth} days left in the month.` });
+      if (pctUsed > 1) {
+        insights.push({
+          type: 'danger',
+          kind: 'budget-over',
+          categoryId: b.categoryId,
+          text: `${b.name} is $${Math.round(b.spent - b.limit)} over its $${Math.round(b.limit)} budget, with ${daysLeft} ${dayWord} left.`
+        });
       } else if (pctUsed > expectedPace * 1.3 && pctUsed > 0.5) {
         insights.push({
           type: 'warning',
-          text: `${b.name} is at ${Math.round(pctUsed * 100)}% of its budget, but only ${Math.round(expectedPace * 100)}% of the month has passed.`
+          kind: 'budget-pace',
+          categoryId: b.categoryId,
+          text: `${b.name} has used ${Math.round(pctUsed * 100)}% of its budget, ${Math.round(expectedPace * 100)}% of the way through the month.`
         });
+      } else if (pctUsed <= expectedPace) {
+        onTrack++;
       }
+    }
+    if (onTrack > 0) {
+      insights.push({
+        type: 'positive',
+        kind: 'win',
+        text:
+          onTrack === tracked
+            ? `Every budget is on pace this month. Nice work.`
+            : `${onTrack} of ${tracked} budgets ${onTrack === 1 ? 'is' : 'are'} on pace this month.`
+      });
     }
   }
 
@@ -83,16 +111,21 @@ function buildInsights({ month, byCategory, prevByCategory, budgetProgress, inco
       if (Math.abs(pct) >= 10) {
         insights.push({
           type: pct > 0 ? 'warning' : 'positive',
-          text: `Overall spending is ${pct > 0 ? 'up' : 'down'} ${Math.round(Math.abs(pct))}% vs last month.`
+          kind: 'swing',
+          text: `Overall spending is ${pct > 0 ? 'up' : 'down'} ${Math.round(Math.abs(pct))}% from last month.`
         });
       }
     }
     if (income > 0 && expenses > 0 && income - expenses > 0) {
-      insights.push({ type: 'positive', text: `You're on pace to save $${Math.round(income - expenses)} this month.` });
+      insights.push({ type: 'positive', kind: 'win', text: `You're on pace to save $${Math.round(income - expenses)} this month.` });
     }
   }
 
-  return insights.slice(0, 4);
+  const rank = { danger: 0, warning: 1, positive: 2 };
+  const sorted = insights.sort((a, b) => rank[a.type] - rank[b.type]);
+  const win = sorted.find((i) => i.kind === 'win');
+  const top = sorted.filter((i) => i !== win).slice(0, win ? 3 : 4);
+  return win ? [...top, win] : top;
 }
 
 router.get('/', async (req, res, next) => {

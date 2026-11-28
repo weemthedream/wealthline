@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Download, Search, Plus, Upload, FileSpreadsheet } from 'lucide-react';
 import { api } from '../api.js';
+import { money } from '../chartTheme.jsx';
 import { CategoryIcon } from '../categoryIcons.jsx';
 import ImportCsv from './ImportCsv.jsx';
 
 function currency(n) {
-  return n.toLocaleString(undefined, { style: 'currency', currency: 'USD' });
+  return money(n, { cents: true });
 }
 
 function today() {

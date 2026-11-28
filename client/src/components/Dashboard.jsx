@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { BarChart, Bar, Cell, Tooltip, ResponsiveContainer, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { TrendingUp, TrendingDown } from 'lucide-react';
+import { TrendingUp, TrendingDown, AlertOctagon, AlertTriangle, Sparkles, Check } from 'lucide-react';
 import { api } from '../api.js';
 import { ChartTooltip, axisProps, gridProps, money } from '../chartTheme.jsx';
 import CashFlow from './CashFlow.jsx';
@@ -135,8 +135,153 @@ function BudgetSnapshot({ budgets, month, onNavigate }) {
   );
 }
 
+// "How much can I still spend?" is the question people open a budgeting app to
+// answer, so it gets the biggest number on the page. Formula, shown to the user:
+// income this month − spent so far − monthly bills not yet marked paid.
+function SafeToSpend({ summary, unpaidBills, month }) {
+  const { day, days } = monthPace(month);
+  const isCurrent = day !== null;
+  const billsDue = unpaidBills.reduce((s, b) => s + b.amount, 0);
+  const left = summary.income - summary.expenses - billsDue;
+  const daysLeft = isCurrent ? days - day + 1 : 0;
+  const perDay = daysLeft > 0 ? left / daysLeft : null;
+
+  if (summary.income <= 0) {
+    return (
+      <section className="panel safe-card">
+        <div className="kpi-label">Safe to spend</div>
+        <div className="safe-value">—</div>
+        <p className="safe-note">
+          Add this month's income on the Transactions page and this will show how much you can still spend.
+        </p>
+      </section>
+    );
+  }
+
+  const short = left < 0;
+  return (
+    <section className="panel safe-card">
+      <div className="kpi-label">{isCurrent ? 'Safe to spend' : 'Left over'}</div>
+      <div className={`safe-value ${short ? 'text-expense' : ''}`}>{money(left)}</div>
+      <p className="safe-note">
+        {short
+          ? `Spending and bills are ${money(-left)} more than this month's income.`
+          : isCurrent && perDay !== null
+            ? `About ${money(perDay)} a day for the ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left, after bills.`
+            : 'Income left after spending and bills.'}
+      </p>
+      <details className="safe-details">
+        <summary>How this is worked out</summary>
+        <dl>
+          <div>
+            <dt>Income this month</dt>
+            <dd className="tabular">{money(summary.income)}</dd>
+          </div>
+          <div>
+            <dt>Spent so far</dt>
+            <dd className="tabular">−{money(summary.expenses)}</dd>
+          </div>
+          <div>
+            <dt>Monthly bills not yet paid ({unpaidBills.length})</dt>
+            <dd className="tabular">−{money(billsDue)}</dd>
+          </div>
+          <div className="safe-total">
+            <dt>{isCurrent ? 'Safe to spend' : 'Left over'}</dt>
+            <dd className="tabular">{money(left)}</dd>
+          </div>
+        </dl>
+      </details>
+    </section>
+  );
+}
+
+function ordinal(n) {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+function UpcomingBills({ bills, hasMonthlyBills, month, onTogglePaid, onNavigate }) {
+  const { day } = monthPace(month);
+  const sorted = [...bills].sort((a, b) => a.dueDay - b.dueDay).slice(0, 4);
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <h3>Bills still to pay</h3>
+        <button className="link-btn" onClick={() => onNavigate('bills')}>
+          All bills
+        </button>
+      </div>
+      {sorted.length === 0 ? (
+        <p className="empty-hint">
+          {hasMonthlyBills
+            ? 'Every monthly bill is marked paid for this month.'
+            : 'No monthly bills set up yet. Add rent, phone and subscriptions under Bills.'}
+        </p>
+      ) : (
+        <ul className="bill-list">
+          {sorted.map((b) => {
+            const late = day !== null && b.dueDay < day;
+            const soon = day !== null && !late && b.dueDay - day <= 3;
+            return (
+              <li key={b.id} className="bill-row">
+                <div className="bill-main">
+                  <span className="bill-name">{b.name}</span>
+                  <span className={`bill-due ${late ? 'late' : soon ? 'soon' : ''}`}>
+                    {late ? `Was due the ${ordinal(b.dueDay)}` : `Due the ${ordinal(b.dueDay)}`}
+                  </span>
+                </div>
+                <span className="bill-amount tabular">{money(b.amount, { cents: true })}</span>
+                <button className="btn-mini" onClick={() => onTogglePaid(b.id)} aria-label={`Mark ${b.name} paid`}>
+                  <Check size={14} /> Paid
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+const ALERT_META = {
+  danger: { icon: AlertOctagon, label: 'Over budget' },
+  warning: { icon: AlertTriangle, label: 'Heads up' },
+  positive: { icon: Sparkles, label: 'Win' }
+};
+
+// Every alert says what happened in plain words, carries an icon and a label
+// (not colour alone), and offers the next step when there is one.
+function AlertRow({ insight, onNavigate }) {
+  const meta = ALERT_META[insight.type] || ALERT_META.warning;
+  const Icon = meta.icon;
+  const action =
+    insight.kind === 'budget-over' || insight.kind === 'budget-pace'
+      ? { label: 'Review budget', to: 'budgets' }
+      : insight.kind === 'swing' && insight.type === 'warning'
+        ? { label: 'See transactions', to: 'transactions' }
+        : null;
+  return (
+    <li className={`alert-row ${insight.type}`}>
+      <span className="alert-icon" aria-hidden="true">
+        <Icon size={15} />
+      </span>
+      <span className="alert-text">
+        <span className="sr-only">{meta.label}: </span>
+        {insight.text}
+      </span>
+      {action && (
+        <button className="link-btn alert-action" onClick={() => onNavigate(action.to)}>
+          {action.label}
+        </button>
+      )}
+    </li>
+  );
+}
+
 export default function Dashboard({ month, refreshKey, onNavigate }) {
   const [summary, setSummary] = useState(null);
+  const [bills, setBills] = useState([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -145,6 +290,23 @@ export default function Dashboard({ month, refreshKey, onNavigate }) {
       .then(setSummary)
       .catch((e) => setError(e.message));
   }, [month, refreshKey]);
+
+  const loadBills = () => {
+    api
+      .getBills()
+      .then(setBills)
+      .catch(() => setBills([]));
+  };
+  useEffect(loadBills, [refreshKey]);
+
+  const togglePaid = async (id) => {
+    try {
+      await api.toggleBillPaid(id, month);
+      loadBills();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
 
   if (error) return <div className="error-box">Couldn't load dashboard: {error}</div>;
   if (!summary) return <div className="loading">Loading…</div>;
@@ -155,9 +317,25 @@ export default function Dashboard({ month, refreshKey, onNavigate }) {
   const savedPct = summary.income > 0 ? ((summary.income - summary.expenses) / summary.income) * 100 : null;
   const lastIndex = trendData.length - 1;
   const insights = summary.insights || [];
+  // Weekly and yearly bills don't have a clear due date within the month, so
+  // only monthly ones count toward "bills still to pay".
+  const unpaidBills = bills.filter(
+    (b) => b.active !== false && b.frequency === 'monthly' && !(b.paidMonths || []).includes(month)
+  );
 
   return (
     <div className="dashboard">
+      <div className="overview-row">
+        <SafeToSpend summary={summary} unpaidBills={unpaidBills} month={month} />
+        <UpcomingBills
+          bills={unpaidBills}
+          hasMonthlyBills={bills.some((b) => b.active !== false && b.frequency === 'monthly')}
+          month={month}
+          onTogglePaid={togglePaid}
+          onNavigate={onNavigate}
+        />
+      </div>
+
       <div className="summary-cards">
         <div className="card kpi">
           <div className="kpi-label">Total income</div>
@@ -183,7 +361,7 @@ export default function Dashboard({ month, refreshKey, onNavigate }) {
         <div className="card kpi">
           <div className="kpi-label">Savings rate</div>
           <div className="card-value">{savedPct !== null ? `${savedPct.toFixed(0)}%` : '—'}</div>
-          {savedPct === null && <div className="card-sub">No income logged yet</div>}
+          <div className="card-sub">{savedPct === null ? 'No income logged yet' : 'Share of income you kept'}</div>
         </div>
       </div>
 
@@ -212,10 +390,7 @@ export default function Dashboard({ month, refreshKey, onNavigate }) {
           ) : (
             <ul className="alert-list">
               {insights.map((insight, i) => (
-                <li key={i} className={`alert-row ${insight.type}`}>
-                  <span className="alert-dot" aria-hidden="true" />
-                  <span>{insight.text}</span>
-                </li>
+                <AlertRow key={i} insight={insight} onNavigate={onNavigate} />
               ))}
             </ul>
           )}
