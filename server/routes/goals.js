@@ -14,9 +14,14 @@ function mapRow(row) {
     targetDate: row.target_date,
     currentAmount: row.current_amount,
     monthlyContribution: row.monthly_contribution,
-    expectedReturnPct: row.expected_return_pct
+    expectedReturnPct: row.expected_return_pct,
+    kind: row.kind || 'retirement',
+    color: row.color || null
   };
 }
+
+const KINDS = ['retirement', 'savings'];
+const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
 router.get('/', async (req, res, next) => {
   try {
@@ -29,17 +34,22 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { name, targetAmount, targetDate, currentAmount, monthlyContribution, expectedReturnPct } = req.body;
-    if (!name || targetAmount === undefined || !targetDate) {
+    const { name, targetAmount, targetDate, currentAmount, monthlyContribution, expectedReturnPct, color } = req.body;
+    const kind = KINDS.includes(req.body.kind) ? req.body.kind : 'retirement';
+    // Savings goals may be open-ended ("whenever I get there"); retirement goals need a date.
+    if (!name || targetAmount === undefined || (kind === 'retirement' && !targetDate)) {
       return res.status(400).json({ error: 'name, targetAmount and targetDate are required' });
     }
+    if (!(Number(targetAmount) > 0)) return res.status(400).json({ error: 'Target amount must be more than 0' });
     const id = crypto.randomUUID();
+    const defaultReturn = kind === 'savings' ? 0 : 6;
     await sql`
-      INSERT INTO goals (id, user_id, name, target_amount, target_date, current_amount, monthly_contribution, expected_return_pct)
+      INSERT INTO goals (id, user_id, name, target_amount, target_date, current_amount, monthly_contribution, expected_return_pct, kind, color)
       VALUES (
-        ${id}, ${req.userId}, ${name}, ${Number(targetAmount)}, ${targetDate},
-        ${Number(currentAmount) || 0}, ${Number(monthlyContribution) || 0},
-        ${expectedReturnPct === undefined ? 6 : Number(expectedReturnPct)}
+        ${id}, ${req.userId}, ${String(name).slice(0, 80)}, ${Number(targetAmount)}, ${targetDate || ''},
+        ${Math.max(0, Number(currentAmount) || 0)}, ${Math.max(0, Number(monthlyContribution) || 0)},
+        ${expectedReturnPct === undefined ? defaultReturn : Number(expectedReturnPct)},
+        ${kind}, ${COLOR_RE.test(color || '') ? color : null}
       )
     `;
     const [row] = await sql`SELECT * FROM goals WHERE id = ${id}`;
@@ -61,16 +71,35 @@ router.put('/:id', async (req, res, next) => {
       monthlyContribution:
         req.body.monthlyContribution !== undefined ? Number(req.body.monthlyContribution) : row.monthly_contribution,
       expectedReturnPct:
-        req.body.expectedReturnPct !== undefined ? Number(req.body.expectedReturnPct) : row.expected_return_pct
+        req.body.expectedReturnPct !== undefined ? Number(req.body.expectedReturnPct) : row.expected_return_pct,
+      color: req.body.color !== undefined && COLOR_RE.test(req.body.color || '') ? req.body.color : row.color
     };
     await sql`
       UPDATE goals
-      SET name = ${next_.name}, target_amount = ${next_.targetAmount}, target_date = ${next_.targetDate},
+      SET name = ${next_.name}, target_amount = ${next_.targetAmount}, target_date = ${next_.targetDate || ''},
           current_amount = ${next_.currentAmount}, monthly_contribution = ${next_.monthlyContribution},
-          expected_return_pct = ${next_.expectedReturnPct}
+          expected_return_pct = ${next_.expectedReturnPct}, color = ${next_.color}
       WHERE id = ${row.id}
     `;
-    res.json({ id: row.id, ...next_ });
+    const [updated] = await sql`SELECT * FROM goals WHERE id = ${row.id}`;
+    res.json(mapRow(updated));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Put money in (positive amount) or take it out (negative). Never goes below 0.
+router.post('/:id/contribute', async (req, res, next) => {
+  try {
+    const amount = Number(req.body.amount);
+    if (!Number.isFinite(amount) || amount === 0) return res.status(400).json({ error: 'Enter an amount' });
+    const [row] = await sql`
+      UPDATE goals SET current_amount = GREATEST(0, current_amount + ${amount})
+      WHERE id = ${req.params.id} AND user_id = ${req.userId}
+      RETURNING *
+    `;
+    if (!row) return res.status(404).json({ error: 'Goal not found' });
+    res.json(mapRow(row));
   } catch (err) {
     next(err);
   }

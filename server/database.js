@@ -54,6 +54,10 @@ async function createSchema() {
   // Monthly recap email: opt-in, and the last month already sent so a retry never doubles up.
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS monthly_recap BOOLEAN NOT NULL DEFAULT false`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_recap_month TEXT`;
+  // Goals come in two kinds: 'retirement' (long-term, with investment growth)
+  // and 'savings' (short-term pots for a trip or a purchase, no growth).
+  await sql`ALTER TABLE goals ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'retirement'`;
+  await sql`ALTER TABLE goals ADD COLUMN IF NOT EXISTS color TEXT`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_token_expires TIMESTAMPTZ`;
   // Accounts that existed before verification was introduced stay usable.
   await sql`UPDATE users SET email_verified = true WHERE email_verified = false AND verify_token_hash IS NULL`;

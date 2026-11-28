@@ -189,7 +189,10 @@ export default function Retirement() {
   const [error, setError] = useState('');
 
   const load = () => {
-    api.getGoals().then(setGoals).catch((e) => setError(e.message));
+    api
+      .getGoals()
+      .then((all) => setGoals(all.filter((g) => g.kind !== 'savings')))
+      .catch((e) => setError(e.message));
   };
 
   useEffect(load, []);
@@ -248,7 +251,7 @@ export default function Retirement() {
 
       <div className="section-head">
         <div>
-          <h2>Retirement &amp; Savings Goals</h2>
+          <h2>Retirement goals</h2>
           <p className="empty-hint" style={{ margin: 0 }}>
             Set a target and see whether your current savings pace gets you there.
           </p>

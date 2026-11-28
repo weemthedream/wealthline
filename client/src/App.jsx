@@ -15,7 +15,8 @@ import {
   Wallet,
   MailWarning,
   Eye,
-  EyeOff
+  EyeOff,
+  PiggyBank
 } from 'lucide-react';
 import Dashboard from './components/Dashboard.jsx';
 import Transactions from './components/Transactions.jsx';
@@ -24,6 +25,7 @@ import Bills from './components/Bills.jsx';
 import YearView from './components/YearView.jsx';
 import Retirement from './components/Retirement.jsx';
 import NetWorth from './components/NetWorth.jsx';
+import SavingsGoals from './components/SavingsGoals.jsx';
 import CategoriesDrawer from './components/CategoriesDrawer.jsx';
 import AuthScreen from './components/AuthScreen.jsx';
 import ResetPassword from './components/ResetPassword.jsx';
@@ -62,6 +64,7 @@ const NAV_SECTIONS = [
   {
     heading: 'Planning',
     items: [
+      { id: 'goals', label: 'Savings goals', short: 'Goals', icon: PiggyBank },
       { id: 'networth', label: 'Net Worth', short: 'Net worth', icon: Landmark },
       { id: 'retirement', label: 'Retirement', short: 'Retire', icon: TrendingUp }
     ]
@@ -317,6 +320,7 @@ function MainApp({ user, onLogout, theme, setTheme }) {
           {section === 'transactions' && <Transactions month={month} categories={categories} onChange={bump} />}
           {section === 'budgets' && <Budgets month={month} categories={categories} onChange={bump} />}
           {section === 'bills' && <Bills month={month} categories={categories} onChange={bump} />}
+          {section === 'goals' && <SavingsGoals onChange={bump} />}
           {section === 'networth' && <NetWorth />}
           {section === 'retirement' && <Retirement />}
         </main>
