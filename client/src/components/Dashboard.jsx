@@ -4,6 +4,7 @@ import { TrendingUp, TrendingDown, AlertOctagon, AlertTriangle, Sparkles, Check,
 import { api } from '../api.js';
 import { ChartTooltip, axisProps, gridProps, money } from '../chartTheme.jsx';
 import CashFlow from './CashFlow.jsx';
+import { goalPlan, GOAL_COLORS } from './SavingsGoals.jsx';
 
 function formatMonthShort(month) {
   const [y, m] = month.split('-').map(Number);
@@ -138,11 +139,13 @@ function BudgetSnapshot({ budgets, month, onNavigate }) {
 // "How much can I still spend?" is the question people open a budgeting app to
 // answer, so it gets the biggest number on the page. Formula, shown to the user:
 // income this month − spent so far − monthly bills not yet marked paid.
-function SafeToSpend({ summary, unpaidBills, month }) {
+function SafeToSpend({ summary, unpaidBills, goalsSetAside, month }) {
   const { day, days } = monthPace(month);
   const isCurrent = day !== null;
   const billsDue = unpaidBills.reduce((s, b) => s + b.amount, 0);
-  const left = summary.income - summary.expenses - billsDue;
+  // Money planned for savings goals this month isn't free to spend.
+  const setAside = isCurrent ? goalsSetAside : 0;
+  const left = summary.income - summary.expenses - billsDue - setAside;
   const daysLeft = isCurrent ? days - day + 1 : 0;
   const perDay = daysLeft > 0 ? left / daysLeft : null;
 
@@ -167,7 +170,9 @@ function SafeToSpend({ summary, unpaidBills, month }) {
         {short
           ? `Spending and bills are ${money(-left)} more than this month's income.`
           : isCurrent && perDay !== null
-            ? `About ${money(perDay)} a day for the ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left, after bills.`
+            ? `About ${money(perDay)} a day for the ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left, after bills${
+                setAside > 0 ? ' and savings goals' : ''
+              }.`
             : 'Income left after spending and bills.'}
       </p>
       <details className="safe-details">
@@ -185,12 +190,62 @@ function SafeToSpend({ summary, unpaidBills, month }) {
             <dt>Monthly bills not yet paid ({unpaidBills.length})</dt>
             <dd className="tabular">−{money(billsDue)}</dd>
           </div>
+          {setAside > 0 && (
+            <div>
+              <dt>Set aside for savings goals</dt>
+              <dd className="tabular">−{money(setAside)}</dd>
+            </div>
+          )}
           <div className="safe-total">
             <dt>{isCurrent ? 'Safe to spend' : 'Left over'}</dt>
             <dd className="tabular">{money(left)}</dd>
           </div>
         </dl>
       </details>
+    </section>
+  );
+}
+
+function GoalsSnapshot({ goals, onNavigate }) {
+  const active = goals
+    .map((g) => ({ ...g, plan: goalPlan(g) }))
+    .filter((g) => !g.plan.done)
+    .sort((a, b) => b.plan.pct - a.plan.pct)
+    .slice(0, 3);
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <h3>Savings goals</h3>
+        <button className="link-btn" onClick={() => onNavigate('goals')}>
+          {goals.length ? 'All goals' : 'Add a goal'}
+        </button>
+      </div>
+      {active.length === 0 ? (
+        <p className="empty-hint">
+          {goals.length
+            ? 'Every goal is reached. Time for a new one?'
+            : 'Saving for a trip or something new? Make a goal and track it here.'}
+        </p>
+      ) : (
+        <div className="snapshot-list">
+          {active.map((g) => (
+            <div key={g.id}>
+              <div className="snapshot-head">
+                <span>
+                  <span className="color-dot" style={{ background: g.color || GOAL_COLORS[0] }} />
+                  {g.name}
+                </span>
+                <span className="snapshot-status tabular">
+                  {money(g.currentAmount)} of {money(g.targetAmount)}
+                </span>
+              </div>
+              <div className="goal-mini-bar">
+                <div style={{ width: `${g.plan.pct}%`, background: g.color || GOAL_COLORS[0] }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -413,6 +468,7 @@ function AlertRow({ insight, onNavigate }) {
 export default function Dashboard({ month, refreshKey, onNavigate }) {
   const [summary, setSummary] = useState(null);
   const [bills, setBills] = useState([]);
+  const [goals, setGoals] = useState([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -429,6 +485,13 @@ export default function Dashboard({ month, refreshKey, onNavigate }) {
       .catch(() => setBills([]));
   };
   useEffect(loadBills, [refreshKey]);
+
+  useEffect(() => {
+    api
+      .getGoals()
+      .then((all) => setGoals(all.filter((g) => g.kind === 'savings')))
+      .catch(() => setGoals([]));
+  }, [refreshKey]);
 
   const togglePaid = async (id) => {
     try {
@@ -459,7 +522,14 @@ export default function Dashboard({ month, refreshKey, onNavigate }) {
       {monthPace(month).day !== null && <WeeklyRecap onNavigate={onNavigate} />}
 
       <div className="overview-row">
-        <SafeToSpend summary={summary} unpaidBills={unpaidBills} month={month} />
+        <SafeToSpend
+          summary={summary}
+          unpaidBills={unpaidBills}
+          goalsSetAside={goals
+            .filter((g) => g.currentAmount < g.targetAmount)
+            .reduce((s, g) => s + (g.monthlyContribution || 0), 0)}
+          month={month}
+        />
         <UpcomingBills
           bills={unpaidBills}
           hasMonthlyBills={bills.some((b) => b.active !== false && b.frequency === 'monthly')}
@@ -467,6 +537,7 @@ export default function Dashboard({ month, refreshKey, onNavigate }) {
           onTogglePaid={togglePaid}
           onNavigate={onNavigate}
         />
+        <GoalsSnapshot goals={goals} onNavigate={onNavigate} />
       </div>
 
       <div className="summary-cards">
