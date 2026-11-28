@@ -299,4 +299,83 @@ router.get('/year', async (req, res, next) => {
   }
 });
 
+// Weekly recap: the last full Monday–Sunday week, compared with the week
+// before it. The client sends its local date so "last week" matches the
+// user's calendar rather than the server's time zone.
+function addDays(dateStr, n) {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+router.get('/week', async (req, res, next) => {
+  try {
+    const userId = req.userId;
+    const today = /^\d{4}-\d{2}-\d{2}$/.test(req.query.today || '') ? req.query.today : new Date().toISOString().slice(0, 10);
+    const dow = (new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7; // Monday = 0
+    const thisMonday = addDays(today, -dow);
+    const weekStart = addDays(thisMonday, -7);
+    const weekEnd = addDays(thisMonday, -1);
+    const prevStart = addDays(weekStart, -7);
+
+    const categories = await sql`SELECT * FROM categories WHERE user_id = ${userId}`;
+    const categoryById = Object.fromEntries(categories.map((c) => [c.id, c]));
+    const txs = await sql`
+      SELECT * FROM transactions WHERE user_id = ${userId} AND date >= ${prevStart} AND date <= ${weekEnd}
+    `;
+    const week = txs.filter((t) => t.date >= weekStart);
+    const prev = txs.filter((t) => t.date < weekStart);
+
+    const spendByCat = (rows) => {
+      const out = {};
+      for (const t of rows) if (t.type === 'expense') out[t.category_id] = (out[t.category_id] || 0) + t.amount;
+      return out;
+    };
+    const cur = spendByCat(week);
+    const before = spendByCat(prev);
+    const catInfo = (id) => ({
+      categoryId: id,
+      name: categoryById[id] ? categoryById[id].name : 'Unknown',
+      color: categoryById[id] ? categoryById[id].color : '#868e96'
+    });
+
+    const topCategories = Object.entries(cur)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([id, total]) => ({ ...catInfo(id), total }));
+
+    // Only compare when there is a previous week to compare with.
+    const hasPrev = prev.length > 0;
+    let biggestMove = null;
+    if (hasPrev) {
+      const ids = new Set([...Object.keys(cur), ...Object.keys(before)]);
+      for (const id of ids) {
+        const delta = (cur[id] || 0) - (before[id] || 0);
+        if (Math.abs(delta) >= 10 && (!biggestMove || Math.abs(delta) > Math.abs(biggestMove.delta))) {
+          biggestMove = { ...catInfo(id), delta };
+        }
+      }
+    }
+
+    const expenses = week.filter((t) => t.type === 'expense');
+    const largest = expenses.sort((a, b) => b.amount - a.amount)[0];
+
+    res.json({
+      weekStart,
+      weekEnd,
+      count: week.length,
+      spent: sumBy(week, 'expense'),
+      income: sumBy(week, 'income'),
+      prevSpent: hasPrev ? sumBy(prev, 'expense') : null,
+      topCategories,
+      biggestMove,
+      largestPurchase: largest
+        ? { description: largest.description, amount: largest.amount, date: largest.date, ...catInfo(largest.category_id) }
+        : null
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

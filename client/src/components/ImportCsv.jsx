@@ -1,7 +1,8 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import Papa from 'papaparse';
 import { Upload, FileSpreadsheet, ArrowLeft, Check, AlertTriangle, X } from 'lucide-react';
 import { api } from '../api.js';
+import { suggestCategory } from '../autoCategory.js';
 
 const money = (n) => n.toLocaleString(undefined, { style: 'currency', currency: 'USD' });
 
@@ -55,7 +56,7 @@ const guess = (headers, patterns) =>
 
 /* ---------- component ---------- */
 
-export default function ImportCsv({ categories, onClose, onImported }) {
+export default function ImportCsv({ categories, learned, onClose, onImported }) {
   const [step, setStep] = useState('upload'); // upload | map | preview | done
   const [fileName, setFileName] = useState('');
   const [headers, setHeaders] = useState([]);
@@ -74,35 +75,13 @@ export default function ImportCsv({ categories, onClose, onImported }) {
   const fallbackExpense = expenseCats.find((c) => /other/i.test(c.name)) || expenseCats[0];
   const fallbackIncome = incomeCats.find((c) => /other/i.test(c.name)) || incomeCats[0];
 
-  // Guess a category from the description, preferring names the user actually has.
-  const categorise = useMemo(() => {
-    const rules = categories.map((c) => ({
-      id: c.id,
-      type: c.type,
-      test: new RegExp(c.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').split(/\s+/).join('|'), 'i')
-    }));
-    const keywordRules = [
-      [/safeway|kroger|trader joe|whole foods|aldi|publix|grocer|wegmans|costco|walmart/i, /grocer/i],
-      [/uber eats|doordash|grubhub|starbucks|chipotle|mcdonald|restaurant|cafe|coffee|pizza/i, /dining/i],
-      [/uber|lyft|shell|chevron|exxon|bp |gas |parking|transit|metro/i, /transport/i],
-      [/netflix|spotify|hulu|disney|cinema|steam|playstation|xbox/i, /entertain/i],
-      [/rent|landlord|property manage/i, /rent|housing/i],
-      [/comcast|xfinity|verizon|at&t|t-mobile|electric|water|utility|pg&e/i, /utilit/i],
-      [/payroll|direct dep|salary|paycheck/i, /salary/i]
-    ];
-    return (description, type) => {
-      const text = description || '';
-      for (const [descPattern, catPattern] of keywordRules) {
-        if (descPattern.test(text)) {
-          const hit = categories.find((c) => c.type === type && catPattern.test(c.name));
-          if (hit) return hit.id;
-        }
-      }
-      const direct = rules.find((r) => r.type === type && r.test.test(text));
-      if (direct) return direct.id;
-      return (type === 'income' ? fallbackIncome : fallbackExpense)?.id || '';
-    };
-  }, [categories, fallbackExpense, fallbackIncome]);
+  // Guess each row's category: the user's own history first, then known
+  // merchants, then category names (see autoCategory.js).
+  const categorise = (description, type) => {
+    const hit = suggestCategory(description, type, categories, learned);
+    if (hit) return { categoryId: hit.categoryId, source: hit.source };
+    return { categoryId: (type === 'income' ? fallbackIncome : fallbackExpense)?.id || '', source: 'fallback' };
+  };
 
   const handleFile = (file) => {
     if (!file) return;
@@ -165,7 +144,10 @@ export default function ImportCsv({ categories, onClose, onImported }) {
         description,
         amount: Math.abs(signed),
         type,
-        categoryId: categorise(description, type),
+        ...(() => {
+          const guess = categorise(description, type);
+          return { categoryId: guess.categoryId, guessSource: guess.source };
+        })(),
         include: true
       });
     });
@@ -200,6 +182,8 @@ export default function ImportCsv({ categories, onClose, onImported }) {
   };
 
   const includedCount = rows.filter((r) => r.include).length;
+  const fromHistory = rows.filter((r) => r.guessSource === 'history').length;
+  const needsLook = rows.filter((r) => r.include && r.guessSource === 'fallback').length;
   const totals = rows.reduce(
     (acc, r) => {
       if (!r.include) return acc;
@@ -352,6 +336,12 @@ export default function ImportCsv({ categories, onClose, onImported }) {
               <span className="text-income">+{money(totals.income)}</span>
               <span className="text-expense">-{money(totals.expense)}</span>
             </div>
+            <p className="auto-hint">
+              {fromHistory > 0 && `${fromHistory} categorized from your past transactions. `}
+              {needsLook > 0
+                ? `${needsLook} couldn't be matched and are highlighted. Pick a category for those.`
+                : 'Every row has a category. Check any that look wrong.'}
+            </p>
 
             <div className="import-rows">
               <table className="data-table">
@@ -382,8 +372,10 @@ export default function ImportCsv({ categories, onClose, onImported }) {
                       <td>
                         <select
                           value={r.categoryId}
-                          onChange={(e) => updateRow(r.key, { categoryId: e.target.value })}
+                          onChange={(e) => updateRow(r.key, { categoryId: e.target.value, guessSource: 'you' })}
                           style={{ maxWidth: 170 }}
+                          className={r.include && r.guessSource === 'fallback' ? 'needs-look' : ''}
+                          aria-label={r.guessSource === 'fallback' ? 'Category (needs a look)' : 'Category'}
                         >
                           {(r.type === 'income' ? incomeCats : expenseCats).map((c) => (
                             <option key={c.id} value={c.id}>{c.name}</option>

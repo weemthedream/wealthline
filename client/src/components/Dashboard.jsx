@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { BarChart, Bar, Cell, Tooltip, ResponsiveContainer, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { TrendingUp, TrendingDown, AlertOctagon, AlertTriangle, Sparkles, Check } from 'lucide-react';
+import { TrendingUp, TrendingDown, AlertOctagon, AlertTriangle, Sparkles, Check, X } from 'lucide-react';
 import { api } from '../api.js';
 import { ChartTooltip, axisProps, gridProps, money } from '../chartTheme.jsx';
 import CashFlow from './CashFlow.jsx';
@@ -244,6 +244,137 @@ function UpcomingBills({ bills, hasMonthlyBills, month, onTogglePaid, onNavigate
   );
 }
 
+function localToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function shortDate(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+const RECAP_KEY = 'wealthline-recap-dismissed';
+
+// A short look back at last week, at the top of Overview: one question,
+// "how did last week go?" It stays until dismissed, then returns next Monday.
+// No comparison is shown when there's no previous week to compare with.
+function WeeklyRecap({ onNavigate }) {
+  const [recap, setRecap] = useState(null);
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(RECAP_KEY) || '';
+    } catch {
+      return '';
+    }
+  });
+
+  useEffect(() => {
+    api
+      .getWeekRecap(localToday())
+      .then(setRecap)
+      .catch(() => setRecap(null));
+  }, []);
+
+  if (!recap || dismissed === recap.weekStart) return null;
+
+  const dismiss = () => {
+    setDismissed(recap.weekStart);
+    try {
+      localStorage.setItem(RECAP_KEY, recap.weekStart);
+    } catch {
+      /* fine: hides for this visit */
+    }
+  };
+
+  const range = `${shortDate(recap.weekStart)} – ${shortDate(recap.weekEnd)}`;
+  const close = (
+    <button className="icon-btn" onClick={dismiss} aria-label="Dismiss weekly recap" title="Got it">
+      <X size={16} />
+    </button>
+  );
+
+  if (recap.count === 0) {
+    return (
+      <section className="panel recap recap-empty">
+        <div>
+          <div className="kpi-label">Last week · {range}</div>
+          <p className="recap-line">
+            Nothing was logged last week. Add anything you missed so this month's numbers stay accurate.
+          </p>
+        </div>
+        <div className="recap-actions">
+          <button className="btn-mini" onClick={() => onNavigate('transactions')}>
+            Add transactions
+          </button>
+          {close}
+        </div>
+      </section>
+    );
+  }
+
+  const diff = recap.prevSpent !== null ? recap.spent - recap.prevSpent : null;
+  const maxCat = recap.topCategories.length ? recap.topCategories[0].total : 0;
+
+  return (
+    <section className="panel recap" aria-labelledby="recap-title">
+      <div className="recap-head">
+        <div>
+          <div className="kpi-label">Your week in review · {range}</div>
+          <h3 id="recap-title" className="recap-title">
+            You spent {money(recap.spent)} across {recap.count} {recap.count === 1 ? 'transaction' : 'transactions'}
+          </h3>
+          {diff !== null && Math.abs(diff) >= 1 && (
+            <p className="recap-line">
+              That's {money(Math.abs(diff))} {diff > 0 ? 'more' : 'less'} than the week before ({money(recap.prevSpent)}
+              ).
+            </p>
+          )}
+        </div>
+        {close}
+      </div>
+
+      <div className="recap-body">
+        {recap.topCategories.length > 0 && (
+          <div className="recap-cats">
+            {recap.topCategories.map((c) => (
+              <div key={c.categoryId} className="recap-cat">
+                <span className="recap-cat-name">
+                  <span className="color-dot" style={{ background: c.color }} />
+                  {c.name}
+                </span>
+                <span className="recap-cat-bar" aria-hidden="true">
+                  <span style={{ width: `${maxCat ? (c.total / maxCat) * 100 : 0}%`, background: c.color }} />
+                </span>
+                <span className="tabular recap-cat-amt">{money(c.total)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <ul className="recap-facts">
+          {recap.biggestMove && (
+            <li>
+              <strong>Biggest change:</strong> {recap.biggestMove.name}, {money(Math.abs(recap.biggestMove.delta))}{' '}
+              {recap.biggestMove.delta > 0 ? 'more' : 'less'} than the week before.
+            </li>
+          )}
+          {recap.largestPurchase && (
+            <li>
+              <strong>Largest purchase:</strong> {recap.largestPurchase.description || recap.largestPurchase.name},{' '}
+              {money(recap.largestPurchase.amount, { cents: true })} on {shortDate(recap.largestPurchase.date)}.
+            </li>
+          )}
+          {recap.income > 0 && (
+            <li>
+              <strong>Income:</strong> {money(recap.income)} came in.
+            </li>
+          )}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
 const ALERT_META = {
   danger: { icon: AlertOctagon, label: 'Over budget' },
   warning: { icon: AlertTriangle, label: 'Heads up' },
@@ -325,6 +456,8 @@ export default function Dashboard({ month, refreshKey, onNavigate }) {
 
   return (
     <div className="dashboard">
+      {monthPace(month).day !== null && <WeeklyRecap onNavigate={onNavigate} />}
+
       <div className="overview-row">
         <SafeToSpend summary={summary} unpaidBills={unpaidBills} month={month} />
         <UpcomingBills

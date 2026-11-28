@@ -68,6 +68,7 @@ export const api = {
 
   getSummary: (month) => request(`/summary${month ? `?month=${month}` : ''}`),
   getYearSummary: (year) => request(`/summary/year${year ? `?year=${year}` : ''}`),
+  getWeekRecap: (today) => request(`/summary/week?today=${today}`),
 
   getGoals: () => request('/goals'),
   createGoal: (data) => request('/goals', { method: 'POST', body: JSON.stringify(data) }),
