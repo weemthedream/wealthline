@@ -63,11 +63,17 @@ export const api = {
   getBills: () => request('/bills'),
   createBill: (data) => request('/bills', { method: 'POST', body: JSON.stringify(data) }),
   updateBill: (id, data) => request(`/bills/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  toggleBillPaid: (id, month) => request(`/bills/${id}/toggle-paid`, { method: 'POST', body: JSON.stringify({ month }) }),
+  toggleBillPaid: (id, month) =>
+    request(`/bills/${id}/toggle-paid`, { method: 'POST', body: JSON.stringify({ month }) }),
   deleteBill: (id) => request(`/bills/${id}`, { method: 'DELETE' }),
 
   getSummary: (month) => request(`/summary${month ? `?month=${month}` : ''}`),
   getYearSummary: (year) => request(`/summary/year${year ? `?year=${year}` : ''}`),
+  getWeekRecap: (today) => request(`/summary/week?today=${today}`),
+  getRecapPrefs: () => request('/reports/preferences'),
+  setRecapPrefs: (monthlyRecap) =>
+    request('/reports/preferences', { method: 'PUT', body: JSON.stringify({ monthlyRecap }) }),
+  sendRecapNow: (month) => request('/reports/monthly/send', { method: 'POST', body: JSON.stringify({ month }) }),
 
   getGoals: () => request('/goals'),
   createGoal: (data) => request('/goals', { method: 'POST', body: JSON.stringify(data) }),

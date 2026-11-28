@@ -29,8 +29,10 @@ function daysInMonth(month) {
   return new Date(y, m, 0).getDate();
 }
 
-// Auto-generated spending callouts, in the spirit of Copilot Money's insight cards:
-// biggest category swings vs. last month, and early over-budget-pace warnings.
+// Auto-generated spending callouts: biggest category swings vs. last month,
+// early over-budget-pace warnings, and wins worth noticing.
+// Wording is deliberately neutral (state the fact, not a judgment) and each
+// insight carries a `kind` so the UI can offer the matching next step.
 function buildInsights({ month, byCategory, prevByCategory, budgetProgress, income, prevIncome, expenses, prevExpenses }) {
   const insights = [];
   const prevTotals = Object.fromEntries(prevByCategory.map((c) => [c.categoryId, c.total]));
@@ -50,10 +52,12 @@ function buildInsights({ month, byCategory, prevByCategory, budgetProgress, inco
   for (const s of swings) {
     insights.push({
       type: s.delta > 0 ? 'warning' : 'positive',
+      kind: 'swing',
+      categoryId: s.categoryId,
       text:
         s.delta > 0
-          ? `${s.name} spending is up ${Math.round(s.pct)}% vs last month ($${Math.round(s.delta)} more).`
-          : `${s.name} spending is down ${Math.round(Math.abs(s.pct))}% vs last month ($${Math.round(Math.abs(s.delta))} saved).`
+          ? `${s.name} is up ${Math.round(s.pct)}% from last month ($${Math.round(s.delta)} more).`
+          : `${s.name} is down ${Math.round(Math.abs(s.pct))}% from last month ($${Math.round(Math.abs(s.delta))} less).`
     });
   }
 
@@ -63,17 +67,41 @@ function buildInsights({ month, byCategory, prevByCategory, budgetProgress, inco
     const dayOfMonth = now.getDate();
     const totalDays = daysInMonth(month);
     const expectedPace = dayOfMonth / totalDays;
+    const daysLeft = totalDays - dayOfMonth;
+    const dayWord = daysLeft === 1 ? 'day' : 'days';
+    let onTrack = 0;
+    let tracked = 0;
     for (const b of budgetProgress) {
       if (b.limit <= 0) continue;
+      tracked++;
       const pctUsed = b.spent / b.limit;
-      if (pctUsed >= 1) {
-        insights.push({ type: 'danger', text: `${b.name} is already over budget with ${totalDays - dayOfMonth} days left in the month.` });
+      if (pctUsed > 1) {
+        insights.push({
+          type: 'danger',
+          kind: 'budget-over',
+          categoryId: b.categoryId,
+          text: `${b.name} is $${Math.round(b.spent - b.limit)} over its $${Math.round(b.limit)} budget, with ${daysLeft} ${dayWord} left.`
+        });
       } else if (pctUsed > expectedPace * 1.3 && pctUsed > 0.5) {
         insights.push({
           type: 'warning',
-          text: `${b.name} is at ${Math.round(pctUsed * 100)}% of its budget, but only ${Math.round(expectedPace * 100)}% of the month has passed.`
+          kind: 'budget-pace',
+          categoryId: b.categoryId,
+          text: `${b.name} has used ${Math.round(pctUsed * 100)}% of its budget, ${Math.round(expectedPace * 100)}% of the way through the month.`
         });
+      } else if (pctUsed <= expectedPace) {
+        onTrack++;
       }
+    }
+    if (onTrack > 0) {
+      insights.push({
+        type: 'positive',
+        kind: 'win',
+        text:
+          onTrack === tracked
+            ? `Every budget is on pace this month. Nice work.`
+            : `${onTrack} of ${tracked} budgets ${onTrack === 1 ? 'is' : 'are'} on pace this month.`
+      });
     }
   }
 
@@ -83,16 +111,21 @@ function buildInsights({ month, byCategory, prevByCategory, budgetProgress, inco
       if (Math.abs(pct) >= 10) {
         insights.push({
           type: pct > 0 ? 'warning' : 'positive',
-          text: `Overall spending is ${pct > 0 ? 'up' : 'down'} ${Math.round(Math.abs(pct))}% vs last month.`
+          kind: 'swing',
+          text: `Overall spending is ${pct > 0 ? 'up' : 'down'} ${Math.round(Math.abs(pct))}% from last month.`
         });
       }
     }
     if (income > 0 && expenses > 0 && income - expenses > 0) {
-      insights.push({ type: 'positive', text: `You're on pace to save $${Math.round(income - expenses)} this month.` });
+      insights.push({ type: 'positive', kind: 'win', text: `You're on pace to save $${Math.round(income - expenses)} this month.` });
     }
   }
 
-  return insights.slice(0, 4);
+  const rank = { danger: 0, warning: 1, positive: 2 };
+  const sorted = insights.sort((a, b) => rank[a.type] - rank[b.type]);
+  const win = sorted.find((i) => i.kind === 'win');
+  const top = sorted.filter((i) => i !== win).slice(0, win ? 3 : 4);
+  return win ? [...top, win] : top;
 }
 
 router.get('/', async (req, res, next) => {
@@ -260,6 +293,85 @@ router.get('/year', async (req, res, next) => {
       byCategory,
       budgetAdherence,
       yoy
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Weekly recap: the last full Monday–Sunday week, compared with the week
+// before it. The client sends its local date so "last week" matches the
+// user's calendar rather than the server's time zone.
+function addDays(dateStr, n) {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+router.get('/week', async (req, res, next) => {
+  try {
+    const userId = req.userId;
+    const today = /^\d{4}-\d{2}-\d{2}$/.test(req.query.today || '') ? req.query.today : new Date().toISOString().slice(0, 10);
+    const dow = (new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7; // Monday = 0
+    const thisMonday = addDays(today, -dow);
+    const weekStart = addDays(thisMonday, -7);
+    const weekEnd = addDays(thisMonday, -1);
+    const prevStart = addDays(weekStart, -7);
+
+    const categories = await sql`SELECT * FROM categories WHERE user_id = ${userId}`;
+    const categoryById = Object.fromEntries(categories.map((c) => [c.id, c]));
+    const txs = await sql`
+      SELECT * FROM transactions WHERE user_id = ${userId} AND date >= ${prevStart} AND date <= ${weekEnd}
+    `;
+    const week = txs.filter((t) => t.date >= weekStart);
+    const prev = txs.filter((t) => t.date < weekStart);
+
+    const spendByCat = (rows) => {
+      const out = {};
+      for (const t of rows) if (t.type === 'expense') out[t.category_id] = (out[t.category_id] || 0) + t.amount;
+      return out;
+    };
+    const cur = spendByCat(week);
+    const before = spendByCat(prev);
+    const catInfo = (id) => ({
+      categoryId: id,
+      name: categoryById[id] ? categoryById[id].name : 'Unknown',
+      color: categoryById[id] ? categoryById[id].color : '#868e96'
+    });
+
+    const topCategories = Object.entries(cur)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([id, total]) => ({ ...catInfo(id), total }));
+
+    // Only compare when there is a previous week to compare with.
+    const hasPrev = prev.length > 0;
+    let biggestMove = null;
+    if (hasPrev) {
+      const ids = new Set([...Object.keys(cur), ...Object.keys(before)]);
+      for (const id of ids) {
+        const delta = (cur[id] || 0) - (before[id] || 0);
+        if (Math.abs(delta) >= 10 && (!biggestMove || Math.abs(delta) > Math.abs(biggestMove.delta))) {
+          biggestMove = { ...catInfo(id), delta };
+        }
+      }
+    }
+
+    const expenses = week.filter((t) => t.type === 'expense');
+    const largest = expenses.sort((a, b) => b.amount - a.amount)[0];
+
+    res.json({
+      weekStart,
+      weekEnd,
+      count: week.length,
+      spent: sumBy(week, 'expense'),
+      income: sumBy(week, 'income'),
+      prevSpent: hasPrev ? sumBy(prev, 'expense') : null,
+      topCategories,
+      biggestMove,
+      largestPurchase: largest
+        ? { description: largest.description, amount: largest.amount, date: largest.date, ...catInfo(largest.category_id) }
+        : null
     });
   } catch (err) {
     next(err);

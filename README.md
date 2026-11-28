@@ -41,6 +41,16 @@ This is the cheapest good option: **Vercel's free Hobby tier + Neon's free Postg
 
 You don't need to set `CORS_ORIGIN` or `PORT` — the frontend and API share the same Vercel domain.
 
+### Monthly recap emails
+
+Users can turn on a monthly email recap in Settings. On the 1st–3rd of each month a Vercel Cron job (see `vercel.json`) calls `/api/reports/cron/monthly`, which emails last month's recap with an Excel attachment (live charts, suggestions, every transaction) to everyone who opted in. It needs these environment variables in Vercel:
+
+- `RESEND_API_KEY` and `RESEND_FROM`: the email provider (also used for verification and password-reset emails).
+- `APP_URL`: your site's address, used for the "Open Wealthline" and unsubscribe links.
+- `CRON_SECRET`: any long random string. Vercel sends it with each cron call, and the endpoint refuses calls without it.
+
+The same report can be downloaded or sent on demand from Settings.
+
 ### Why not GitHub or Vercel alone?
 
 - **GitHub** hosts your code and (via GitHub Pages) only static sites — it can't run the Express backend or store data, so it's your source repo, not your app host.

@@ -119,7 +119,7 @@ export default function TvmTable() {
               key={i}
               type="monotone"
               dataKey={seriesKey(i)}
-              name={`$${c.toLocaleString()}/yr`}
+              name={`${money(c)}/yr`}
               stroke={SERIES[i]}
               strokeWidth={2}
               dot={false}

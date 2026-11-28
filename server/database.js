@@ -51,6 +51,9 @@ async function createSchema() {
   // the moment re-verification ships.
   await sql`UPDATE users SET email_verified_at = now() WHERE email_verified = true AND email_verified_at IS NULL`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_token_hash TEXT`;
+  // Monthly recap email: opt-in, and the last month already sent so a retry never doubles up.
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS monthly_recap BOOLEAN NOT NULL DEFAULT false`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_recap_month TEXT`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_token_expires TIMESTAMPTZ`;
   // Accounts that existed before verification was introduced stay usable.
   await sql`UPDATE users SET email_verified = true WHERE email_verified = false AND verify_token_hash IS NULL`;

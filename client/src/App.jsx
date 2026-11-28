@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import {
   CalendarDays,
-  BarChart3,
+  Home,
+  Repeat,
   Landmark,
   Target,
+  TrendingUp,
   Sun,
   Moon,
   Settings2,
@@ -11,7 +13,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Wallet,
-  MailWarning
+  MailWarning,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import Dashboard from './components/Dashboard.jsx';
 import Transactions from './components/Transactions.jsx';
@@ -25,6 +29,7 @@ import AuthScreen from './components/AuthScreen.jsx';
 import ResetPassword from './components/ResetPassword.jsx';
 import VerifyEmail from './components/VerifyEmail.jsx';
 import { api } from './api.js';
+import { setAmountsHidden } from './chartTheme.jsx';
 
 function currentMonth() {
   const now = new Date();
@@ -42,19 +47,58 @@ function formatMonthLabel(month) {
   return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 }
 
-const MONTH_SUBTABS = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'transactions', label: 'Transactions' },
-  { id: 'budgets', label: 'Budgets' },
-  { id: 'bills', label: 'Bills' }
+// One list of places to go. Time (month vs. year) is a control on the page,
+// not a destination, so it lives next to the date picker instead of in the nav.
+const NAV_SECTIONS = [
+  {
+    heading: 'Spending',
+    items: [
+      { id: 'overview', label: 'Overview', icon: Home, period: 'month-or-year' },
+      { id: 'transactions', label: 'Transactions', short: 'Activity', icon: Repeat, period: 'month' },
+      { id: 'budgets', label: 'Budgets', icon: Target, period: 'month' },
+      { id: 'bills', label: 'Bills', icon: CalendarDays, period: 'month' }
+    ]
+  },
+  {
+    heading: 'Planning',
+    items: [
+      { id: 'networth', label: 'Net Worth', short: 'Net worth', icon: Landmark },
+      { id: 'retirement', label: 'Retirement', short: 'Retire', icon: TrendingUp }
+    ]
+  }
 ];
 
-const PRIMARY_TABS = [
-  { id: 'month', label: 'Month', icon: CalendarDays },
-  { id: 'year', label: 'Year', icon: BarChart3 },
-  { id: 'networth', label: 'Net Worth', icon: Landmark },
-  { id: 'retirement', label: 'Retirement', icon: Target }
-];
+const NAV_ITEMS = NAV_SECTIONS.flatMap((s) => s.items);
+
+function sectionFromHash() {
+  const id = window.location.hash.replace('#', '');
+  return NAV_ITEMS.some((n) => n.id === id) ? id : 'overview';
+}
+
+function PeriodSwitcher({ label, onPrev, onNext, unit }) {
+  return (
+    <div className="period-switcher">
+      <button className="icon-btn" onClick={onPrev} aria-label={`Previous ${unit}`}>
+        <ChevronLeft size={16} />
+      </button>
+      <span className="period-label">{label}</span>
+      <button className="icon-btn" onClick={onNext} aria-label={`Next ${unit}`}>
+        <ChevronRight size={16} />
+      </button>
+    </div>
+  );
+}
+
+function Brand() {
+  return (
+    <div className="brand">
+      <span className="brand-mark">
+        <Wallet size={15} strokeWidth={2.25} />
+      </span>
+      Wealthline
+    </div>
+  );
+}
 
 function ReverifyBanner({ email }) {
   const [sent, setSent] = useState(false);
@@ -85,129 +129,211 @@ function ReverifyBanner({ email }) {
 }
 
 function MainApp({ user, onLogout, theme, setTheme }) {
-  const [primaryTab, setPrimaryTab] = useState('month');
-  const [monthSubTab, setMonthSubTab] = useState('overview');
+  const [section, setSection] = useState(sectionFromHash);
+  const [overviewRange, setOverviewRange] = useState('month');
   const [month, setMonth] = useState(currentMonth());
   const [year, setYear] = useState(new Date().getFullYear());
   const [categories, setCategories] = useState([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [showCategories, setShowCategories] = useState(false);
+  const [amountsHidden, setHidden] = useState(() => {
+    try {
+      return localStorage.getItem('wealthline-hide-amounts') === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  // Set before children render so every money() call this render sees it.
+  setAmountsHidden(amountsHidden);
+
+  const toggleAmounts = () => {
+    const next = !amountsHidden;
+    setHidden(next);
+    try {
+      localStorage.setItem('wealthline-hide-amounts', next ? '1' : '0');
+    } catch {
+      /* storage unavailable: setting lasts for this visit only */
+    }
+  };
 
   useEffect(() => {
-    api.getCategories().then(setCategories).catch(() => {});
+    api
+      .getCategories()
+      .then(setCategories)
+      .catch(() => {});
   }, [refreshKey]);
 
+  // Keep the open section in the URL so refresh and the back button work.
+  useEffect(() => {
+    const onHash = () => setSection(sectionFromHash());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  const go = (id) => {
+    if (id === section) return;
+    window.location.hash = id;
+    setSection(id);
+    window.scrollTo(0, 0);
+  };
+
   const bump = () => setRefreshKey((k) => k + 1);
+  const current = NAV_ITEMS.find((n) => n.id === section);
+  const showYear = section === 'overview' && overviewRange === 'year';
+  const showMonth = current.period === 'month' || (current.period === 'month-or-year' && !showYear);
+
+  const themeButton = (
+    <button
+      className="icon-btn"
+      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+      aria-label="Toggle theme"
+      title="Toggle light / dark theme"
+    >
+      {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+    </button>
+  );
+  const privacyButton = (
+    <button
+      className={`icon-btn ${amountsHidden ? 'is-on' : ''}`}
+      onClick={toggleAmounts}
+      aria-pressed={amountsHidden}
+      aria-label={amountsHidden ? 'Show amounts' : 'Hide amounts'}
+      title={amountsHidden ? 'Show amounts' : 'Hide amounts (privacy mode)'}
+    >
+      {amountsHidden ? <EyeOff size={16} /> : <Eye size={16} />}
+    </button>
+  );
+  const categoriesButton = (
+    <button
+      className="icon-btn"
+      onClick={() => setShowCategories(true)}
+      aria-label="Settings"
+      title="Settings: categories, account and email recap"
+    >
+      <Settings2 size={16} />
+    </button>
+  );
+  const logoutButton = (
+    <button className="icon-btn" onClick={onLogout} aria-label="Log out" title="Log out">
+      <LogOut size={16} />
+    </button>
+  );
 
   return (
     <div className="app-shell">
-      <header className="topbar">
-        <div className="topbar-inner">
-          <div className="brand">
-            <span className="brand-mark">
-              <Wallet size={15} strokeWidth={2.25} />
-            </span>
-            Wealthline
+      <aside className="sidebar">
+        <Brand />
+        <nav className="side-nav" aria-label="Main">
+          {NAV_SECTIONS.map((group) => (
+            <div className="side-nav-group" key={group.heading}>
+              <div className="side-nav-heading">{group.heading}</div>
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.id}
+                    className={`side-nav-btn ${section === item.id ? 'active' : ''}`}
+                    aria-current={section === item.id ? 'page' : undefined}
+                    onClick={() => go(item.id)}
+                  >
+                    <Icon size={17} strokeWidth={2} />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
+        <div className="sidebar-footer">
+          <span className="user-menu" title={user.email}>
+            {user.email}
+          </span>
+          <div className="sidebar-actions">
+            {privacyButton}
+            {themeButton}
+            {categoriesButton}
+            {logoutButton}
           </div>
+        </div>
+      </aside>
+
+      <div className="app-main">
+        <header className="mobile-topbar">
+          <Brand />
           <div className="topbar-actions">
-            <span className="user-menu">{user.email}</span>
-            <button
-              className="icon-btn"
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              aria-label="Toggle theme"
-              title="Toggle light / dark theme"
-            >
-              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-            </button>
-            <button
-              className="icon-btn"
-              onClick={() => setShowCategories(true)}
-              aria-label="Manage categories"
-              title="Manage categories"
-            >
-              <Settings2 size={16} />
-            </button>
-            <button className="icon-btn" onClick={onLogout} aria-label="Log out" title="Log out">
-              <LogOut size={16} />
-            </button>
+            {privacyButton}
+            {themeButton}
+            {categoriesButton}
+            {logoutButton}
           </div>
-        </div>
+        </header>
 
-        <div className="primary-nav-row">
-          <div className="segmented">
-            {PRIMARY_TABS.map((t) => (
-              <button key={t.id} className={primaryTab === t.id ? 'active' : ''} onClick={() => setPrimaryTab(t.id)}>
-                {t.label}
-              </button>
-            ))}
+        <main className="main-content">
+          {user.verificationStale && <ReverifyBanner email={user.email} />}
+
+          <div className="page-head">
+            <h1>{current.label}</h1>
+            <div className="page-controls">
+              {section === 'overview' && (
+                <div className="segmented" role="group" aria-label="Time range">
+                  <button
+                    className={overviewRange === 'month' ? 'active' : ''}
+                    aria-pressed={overviewRange === 'month'}
+                    onClick={() => setOverviewRange('month')}
+                  >
+                    Month
+                  </button>
+                  <button
+                    className={overviewRange === 'year' ? 'active' : ''}
+                    aria-pressed={overviewRange === 'year'}
+                    onClick={() => setOverviewRange('year')}
+                  >
+                    Year
+                  </button>
+                </div>
+              )}
+              {showMonth && (
+                <PeriodSwitcher
+                  unit="month"
+                  label={formatMonthLabel(month)}
+                  onPrev={() => setMonth(shiftMonth(month, -1))}
+                  onNext={() => setMonth(shiftMonth(month, 1))}
+                />
+              )}
+              {showYear && (
+                <PeriodSwitcher
+                  unit="year"
+                  label={year}
+                  onPrev={() => setYear(year - 1)}
+                  onNext={() => setYear(year + 1)}
+                />
+              )}
+            </div>
           </div>
 
-          {primaryTab === 'month' && (
-            <div className="period-switcher">
-              <button className="icon-btn" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month">
-                <ChevronLeft size={16} />
-              </button>
-              <span className="period-label">{formatMonthLabel(month)}</span>
-              <button className="icon-btn" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Next month">
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          )}
+          {section === 'overview' && !showYear && <Dashboard month={month} refreshKey={refreshKey} onNavigate={go} />}
+          {showYear && <YearView year={year} refreshKey={refreshKey} />}
+          {section === 'transactions' && <Transactions month={month} categories={categories} onChange={bump} />}
+          {section === 'budgets' && <Budgets month={month} categories={categories} onChange={bump} />}
+          {section === 'bills' && <Bills month={month} categories={categories} onChange={bump} />}
+          {section === 'networth' && <NetWorth />}
+          {section === 'retirement' && <Retirement />}
+        </main>
+      </div>
 
-          {primaryTab === 'year' && (
-            <div className="period-switcher">
-              <button className="icon-btn" onClick={() => setYear(year - 1)} aria-label="Previous year">
-                <ChevronLeft size={16} />
-              </button>
-              <span className="period-label">{year}</span>
-              <button className="icon-btn" onClick={() => setYear(year + 1)} aria-label="Next year">
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          )}
-        </div>
-
-        {primaryTab === 'month' && (
-          <nav className="subnav">
-            {MONTH_SUBTABS.map((t) => (
-              <button
-                key={t.id}
-                className={`subnav-btn ${monthSubTab === t.id ? 'active' : ''}`}
-                onClick={() => setMonthSubTab(t.id)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </nav>
-        )}
-      </header>
-
-      <main className="main-content">
-        {user.verificationStale && <ReverifyBanner email={user.email} />}
-
-        {primaryTab === 'month' && monthSubTab === 'overview' && <Dashboard month={month} refreshKey={refreshKey} />}
-        {primaryTab === 'month' && monthSubTab === 'transactions' && (
-          <Transactions month={month} categories={categories} onChange={bump} />
-        )}
-        {primaryTab === 'month' && monthSubTab === 'budgets' && (
-          <Budgets month={month} categories={categories} onChange={bump} />
-        )}
-        {primaryTab === 'month' && monthSubTab === 'bills' && (
-          <Bills month={month} categories={categories} onChange={bump} />
-        )}
-
-        {primaryTab === 'year' && <YearView year={year} refreshKey={refreshKey} />}
-        {primaryTab === 'networth' && <NetWorth />}
-        {primaryTab === 'retirement' && <Retirement />}
-      </main>
-
-      <nav className="bottom-tab-bar">
-        {PRIMARY_TABS.map((t) => {
+      <nav className="bottom-tab-bar" aria-label="Main">
+        {NAV_ITEMS.map((t) => {
           const Icon = t.icon;
           return (
-            <button key={t.id} className={primaryTab === t.id ? 'active' : ''} onClick={() => setPrimaryTab(t.id)}>
+            <button
+              key={t.id}
+              className={section === t.id ? 'active' : ''}
+              aria-current={section === t.id ? 'page' : undefined}
+              onClick={() => go(t.id)}
+            >
               <Icon size={19} strokeWidth={2} />
-              <span>{t.label}</span>
+              <span>{t.short || t.label}</span>
             </button>
           );
         })}

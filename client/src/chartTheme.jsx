@@ -2,7 +2,14 @@ import React from 'react';
 
 // Categorical slots, fixed order, never cycled. Validated for CVD separation and
 // contrast against both the light (#ffffff) and dark (#111113) card surfaces.
-export const SERIES = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)', 'var(--chart-6)'];
+export const SERIES = [
+  'var(--chart-1)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)',
+  'var(--chart-6)'
+];
 
 export const axisProps = {
   tick: { fill: 'var(--axis)', fontSize: 11 },
@@ -17,14 +24,27 @@ export const gridProps = {
   vertical: false
 };
 
-export function money(n, { compact = false } = {}) {
+// Privacy mode: when on, every dollar figure renders as "$•••" so the app can be
+// used in public or on a shared screen. App sets this before each render.
+let amountsHidden = false;
+export function setAmountsHidden(hidden) {
+  amountsHidden = !!hidden;
+}
+
+export function money(n, { compact = false, cents = false } = {}) {
+  if (amountsHidden) return '$•••';
   if (compact) {
     const abs = Math.abs(n);
     if (abs >= 1_000_000) return `$${(n / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`;
     if (abs >= 1_000) return `$${(n / 1_000).toFixed(abs >= 10_000 ? 0 : 1)}k`;
     return `$${Math.round(n)}`;
   }
-  return n.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  return n.toLocaleString(undefined, {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: cents ? 2 : 0,
+    minimumFractionDigits: cents ? 2 : 0
+  });
 }
 
 export function ChartTooltip({ active, payload, label, labelFormatter }) {
