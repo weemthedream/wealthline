@@ -208,8 +208,8 @@ function MainApp({ user, onLogout, theme, setTheme }) {
     <button
       className="icon-btn"
       onClick={() => setShowCategories(true)}
-      aria-label="Manage categories"
-      title="Manage categories"
+      aria-label="Settings"
+      title="Settings: categories, account and email recap"
     >
       <Settings2 size={16} />
     </button>

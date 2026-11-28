@@ -2203,3 +2203,21 @@ select.needs-look {
   align-items: center;
   gap: 6px;
 }
+
+/* ---------- Monthly recap settings ---------- */
+.toggle-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  margin-bottom: 10px;
+}
+
+.toggle-row input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}

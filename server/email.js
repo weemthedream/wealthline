@@ -1,11 +1,14 @@
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_ADDRESS = process.env.RESEND_FROM || 'Wealthline <noreply@wealthline.app>';
 
-async function sendEmail({ to, subject, html }) {
+async function sendEmail({ to, subject, html, attachments, headers }) {
   if (!RESEND_API_KEY) {
     // No email provider configured yet — fall back to logging so the flow is
     // still testable locally without blocking on a third-party signup.
-    console.warn(`[email] RESEND_API_KEY not set. Would have sent to ${to}: ${subject}`);
+    console.warn(
+      `[email] RESEND_API_KEY not set. Would have sent to ${to}: ${subject}` +
+        (attachments?.length ? ` (+${attachments.length} attachment)` : '')
+    );
     console.warn(html);
     return { delivered: false };
   }
@@ -16,7 +19,14 @@ async function sendEmail({ to, subject, html }) {
       Authorization: `Bearer ${RESEND_API_KEY}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ from: FROM_ADDRESS, to: [to], subject, html })
+    body: JSON.stringify({
+      from: FROM_ADDRESS,
+      to: [to],
+      subject,
+      html,
+      ...(attachments?.length ? { attachments } : {}),
+      ...(headers ? { headers } : {})
+    })
   });
 
   if (!res.ok) {

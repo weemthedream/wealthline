@@ -1,6 +1,110 @@
-import React, { useState } from 'react';
-import { Download, FileSpreadsheet, LogOut, Trash2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Download, FileSpreadsheet, LogOut, Trash2, Mail } from 'lucide-react';
 import { api } from '../api.js';
+
+function lastMonth() {
+  const d = new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() - 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// Monthly recap email: opt-in toggle, plus a way to see the report right now.
+function MonthlyRecapSettings() {
+  const [prefs, setPrefs] = useState(null);
+  const [month, setMonth] = useState(lastMonth());
+  const [status, setStatus] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api
+      .getRecapPrefs()
+      .then(setPrefs)
+      .catch(() => setPrefs({ monthlyRecap: false, emailConfigured: false }));
+  }, []);
+
+  const toggle = async (on) => {
+    setStatus('');
+    try {
+      setPrefs(await api.setRecapPrefs(on));
+    } catch (err) {
+      setStatus(err.message);
+    }
+  };
+
+  const download = async () => {
+    setStatus('');
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/reports/monthly.xlsx?month=${month}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`Download failed (${res.status})`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Wealthline ${month} recap.xlsx`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setStatus(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sendNow = async () => {
+    setStatus('');
+    setBusy(true);
+    try {
+      const r = await api.sendRecapNow(month);
+      setStatus(
+        r.delivered ? `Sent to ${r.to}.` : 'Email sending isn’t set up on the server yet, so nothing was delivered.'
+      );
+    } catch (err) {
+      setStatus(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!prefs) return null;
+  return (
+    <div className="recap-settings">
+      <div className="category-type-heading">Monthly email recap</div>
+      <label className="toggle-row">
+        <input type="checkbox" checked={prefs.monthlyRecap} onChange={(e) => toggle(e.target.checked)} />
+        <span>
+          <strong>Email me a recap on the 1st of each month</strong>
+          <span className="empty-hint" style={{ display: 'block', margin: '2px 0 0' }}>
+            Last month's income, spending and savings, what to do next, and an Excel file with charts.
+          </span>
+        </span>
+      </label>
+      {!prefs.emailConfigured && (
+        <p className="empty-hint">Email sending isn't set up on the server yet, so recaps can't be delivered.</p>
+      )}
+      <div className="account-actions" style={{ alignItems: 'flex-end' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.8rem' }}>
+          Month
+          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+        </label>
+        <button className="secondary-btn" onClick={download} disabled={busy || !month}>
+          <FileSpreadsheet size={14} />
+          Download report
+        </button>
+        <button className="secondary-btn" onClick={sendNow} disabled={busy || !month}>
+          <Mail size={14} />
+          Email it to me now
+        </button>
+      </div>
+      {status && (
+        <p className="empty-hint" role="status">
+          {status}
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function AccountSettings({ user, onSignedOut }) {
   const [confirming, setConfirming] = useState(false);
@@ -91,6 +195,8 @@ export default function AccountSettings({ user, onSignedOut }) {
           Sign out on all devices
         </button>
       </div>
+
+      <MonthlyRecapSettings />
 
       <div className="category-type-heading" style={{ color: 'var(--expense)' }}>
         Danger zone
